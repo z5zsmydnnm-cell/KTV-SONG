@@ -1,10 +1,10 @@
 {
   "project": "KTV-SONG",
-  "version": "2026.07.09.1127",
-  "updated": "2026-07-09",
+  "version": "2026.07.09.1147",
+  "updated": "2026-07-09 11:47:35",
   "encoding": "UTF-8",
   "format": "csv",
-  "song_count": 32,
+  "count": 113,
   "files": {
     "master": "songs/master.csv"
   }
