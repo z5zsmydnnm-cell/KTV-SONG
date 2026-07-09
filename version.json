@@ -1,23 +1,11 @@
 {
   "project": "KTV-SONG",
-  "version": "2026.07.09",
+  "version": "2026.07.09.1117",
   "updated": "2026-07-09",
   "encoding": "UTF-8",
   "format": "csv",
+  "song_count": 32,
   "files": {
-    "master": "https://raw.githubusercontent.com/z5zsmydnnm-cell/KTV-SONG/main/songs/master.csv",
-    "音圓": "https://raw.githubusercontent.com/z5zsmydnnm-cell/KTV-SONG/main/songs/音圓.csv",
-    "金嗓": "https://raw.githubusercontent.com/z5zsmydnnm-cell/KTV-SONG/main/songs/金嗓.csv",
-    "弘音": "https://raw.githubusercontent.com/z5zsmydnnm-cell/KTV-SONG/main/songs/弘音.csv"
-  },
-  "columns": [
-    "歌名",
-    "歌手",
-    "語言",
-    "音圓代號",
-    "金嗓代號",
-    "弘音代號",
-    "YouTube連結",
-    "備註"
-  ]
+    "master": "songs/master.csv"
+  }
 }
