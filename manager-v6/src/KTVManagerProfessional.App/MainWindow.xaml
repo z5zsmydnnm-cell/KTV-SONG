@@ -10,6 +10,7 @@
         Width="1220"
         MinWidth="980"
         AllowDrop="True"
+        FontFamily="Microsoft JhengHei UI"
         DragOver="Window_DragOver"
         Drop="Window_Drop">
     <Grid Background="#F6F7F9">
@@ -32,7 +33,7 @@
                     <TextBlock x:Name="StatusText"
                                Margin="0,6,0,0"
                                Foreground="#5B6573"
-                               Text="Drag PDF, Excel, or CSV files here, or choose files to import." />
+                               Text="可直接拖曳 PDF、Excel、CSV 檔案到視窗，或按右側按鈕選擇檔案。" />
                 </StackPanel>
 
                 <Button Grid.Column="1"
@@ -40,17 +41,17 @@
                         Height="38"
                         Margin="16,0,8,0"
                         Click="ChooseFiles_Click"
-                        Content="Import files" />
+                        Content="選擇檔案" />
                 <Button Grid.Column="2"
                         Width="148"
                         Height="38"
                         Click="ExportCsv_Click"
-                        Content="Export master.csv" />
+                        Content="匯出 master.csv" />
             </Grid>
         </Border>
 
         <TabControl Grid.Row="1" Margin="18">
-            <TabItem Header="Import">
+            <TabItem Header="匯入">
                 <Grid Margin="0,12,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="150" />
@@ -66,15 +67,15 @@
                               HeadersVisibility="Column"
                               RowHeaderWidth="0">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="File" Binding="{Binding SourceFileName}" Width="2*" />
-                            <DataGridTextColumn Header="Type" Binding="{Binding SourceType}" Width="90" />
-                            <DataGridTextColumn Header="Brand" Binding="{Binding BrandCode}" Width="100" />
-                            <DataGridTextColumn Header="Volume" Binding="{Binding VolumeCode}" Width="90" />
-                            <DataGridTextColumn Header="Rows" Binding="{Binding TotalRows}" Width="80" />
-                            <DataGridTextColumn Header="New" Binding="{Binding ImportedRows}" Width="80" />
-                            <DataGridTextColumn Header="Updated" Binding="{Binding UpdatedRows}" Width="90" />
-                            <DataGridTextColumn Header="Duplicate" Binding="{Binding DuplicateRows}" Width="100" />
-                            <DataGridTextColumn Header="Failed" Binding="{Binding FailedRows}" Width="90" />
+                            <DataGridTextColumn Header="檔案" Binding="{Binding SourceFileName}" Width="2*" />
+                            <DataGridTextColumn Header="類型" Binding="{Binding SourceType}" Width="90" />
+                            <DataGridTextColumn Header="品牌" Binding="{Binding BrandCode}" Width="100" />
+                            <DataGridTextColumn Header="集數" Binding="{Binding VolumeCode}" Width="90" />
+                            <DataGridTextColumn Header="總列數" Binding="{Binding TotalRows}" Width="80" />
+                            <DataGridTextColumn Header="新增" Binding="{Binding ImportedRows}" Width="80" />
+                            <DataGridTextColumn Header="更新" Binding="{Binding UpdatedRows}" Width="90" />
+                            <DataGridTextColumn Header="重複" Binding="{Binding DuplicateRows}" Width="100" />
+                            <DataGridTextColumn Header="失敗" Binding="{Binding FailedRows}" Width="90" />
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -88,12 +89,12 @@
                               HeadersVisibility="Column"
                               RowHeaderWidth="0">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Song No" Binding="{Binding SongNumber}" Width="110" />
-                            <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="2*" />
-                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" />
-                            <DataGridTextColumn Header="Language" Binding="{Binding Language}" Width="100" />
-                            <DataGridTextColumn Header="Brand" Binding="{Binding BrandCode}" Width="100" />
-                            <DataGridTextColumn Header="Volume" Binding="{Binding Volume}" Width="90" />
+                            <DataGridTextColumn Header="歌號" Binding="{Binding SongNumber}" Width="110" />
+                            <DataGridTextColumn Header="歌名" Binding="{Binding Title}" Width="2*" />
+                            <DataGridTextColumn Header="歌手" Binding="{Binding Artist}" Width="2*" />
+                            <DataGridTextColumn Header="語言" Binding="{Binding Language}" Width="100" />
+                            <DataGridTextColumn Header="品牌" Binding="{Binding BrandCode}" Width="100" />
+                            <DataGridTextColumn Header="集數" Binding="{Binding Volume}" Width="90" />
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -102,14 +103,14 @@
                             <TextBlock DockPanel.Dock="Top"
                                        Padding="12,10"
                                        FontWeight="SemiBold"
-                                       Text="Import issues" />
+                                       Text="解析失敗行" />
                             <ListBox x:Name="IssuesList" BorderThickness="0">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <TextBlock TextWrapping="Wrap">
-                                            <Run Text="Line " />
+                                            <Run Text="第 " />
                                             <Run Text="{Binding LineNumber}" />
-                                            <Run Text=": " />
+                                            <Run Text=" 行：" />
                                             <Run Text="{Binding Line}" />
                                             <Run Text=" - " />
                                             <Run Text="{Binding Reason}" />
@@ -131,12 +132,12 @@
                     </Grid.RowDefinitions>
                     <DockPanel Grid.Row="0" LastChildFill="False">
                         <StackPanel DockPanel.Dock="Left">
-                            <TextBlock FontWeight="SemiBold" Text="GitHub Engine" />
+                            <TextBlock FontWeight="SemiBold" Text="GitHub 發布" />
                             <TextBlock x:Name="GitPanelStatusText" Margin="0,8,0,0" Text="{Binding ElementName=GitStatusText, Path=Text}" />
                         </StackPanel>
-                        <Button DockPanel.Dock="Right" Width="110" Height="34" Margin="8,0,0,0" Click="RefreshGit_Click" Content="Refresh" />
-                        <Button x:Name="CommitButton" DockPanel.Dock="Right" Width="110" Height="34" Margin="8,0,0,0" Click="CommitGit_Click" Content="Commit" />
-                        <Button x:Name="PushButton" DockPanel.Dock="Right" Width="110" Height="34" Margin="8,0,0,0" Click="PushGit_Click" Content="Push" />
+                        <Button DockPanel.Dock="Right" Width="110" Height="34" Margin="8,0,0,0" Click="RefreshGit_Click" Content="重新整理" />
+                        <Button x:Name="CommitButton" DockPanel.Dock="Right" Width="110" Height="34" Margin="8,0,0,0" Click="CommitGit_Click" Content="建立提交" />
+                        <Button x:Name="PushButton" DockPanel.Dock="Right" Width="110" Height="34" Margin="8,0,0,0" Click="PushGit_Click" Content="推送" />
                     </DockPanel>
                     <DataGrid x:Name="GitStatusGrid"
                               Grid.Row="1"
@@ -147,8 +148,8 @@
                               HeadersVisibility="Column"
                               RowHeaderWidth="0">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120" />
-                            <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="*" />
+                            <DataGridTextColumn Header="狀態" Binding="{Binding Status}" Width="120" />
+                            <DataGridTextColumn Header="路徑" Binding="{Binding Path}" Width="*" />
                         </DataGrid.Columns>
                     </DataGrid>
                     <TextBox x:Name="GitOutputText"
@@ -159,9 +160,9 @@
                 </Grid>
             </TabItem>
 
-            <TabItem Header="Preview/OCR">
+            <TabItem Header="預覽/OCR">
                 <StackPanel Margin="0,12,0,0">
-                    <TextBlock FontWeight="SemiBold" Text="PDF Preview / OCR" />
+                    <TextBlock FontWeight="SemiBold" Text="PDF 預覽 / OCR" />
                     <TextBlock x:Name="OcrStatusText" Margin="0,8,0,0" />
                     <Button x:Name="RunOcrButton"
                             Width="140"
@@ -169,8 +170,8 @@
                             Margin="0,12,0,0"
                             HorizontalAlignment="Left"
                             IsEnabled="False"
-                            Content="Run OCR" />
-                    <TextBlock Margin="0,12,0,0" Text="PDF diagnostics and manual correction storage are available in Build 004 core. Full page rendering is the next UI refinement." />
+                            Content="執行 OCR" />
+                    <TextBlock Margin="0,12,0,0" Text="Build 004 已建立 PDF 診斷與手動修正資料儲存；完整頁面預覽是下一階段 UI 強化。" />
                 </StackPanel>
             </TabItem>
         </TabControl>

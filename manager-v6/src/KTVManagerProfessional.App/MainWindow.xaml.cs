@@ -43,8 +43,8 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Import PDF, Excel, or CSV files",
-            Filter = "Supported files (*.pdf;*.xlsx;*.xls;*.csv)|*.pdf;*.xlsx;*.xls;*.csv|All files (*.*)|*.*",
+            Title = "匯入 PDF、Excel 或 CSV 檔案",
+            Filter = "支援的檔案 (*.pdf;*.xlsx;*.xls;*.csv)|*.pdf;*.xlsx;*.xls;*.csv|所有檔案 (*.*)|*.*",
             Multiselect = true
         };
 
@@ -58,13 +58,13 @@ public partial class MainWindow : Window
     {
         if (_songs.Count == 0)
         {
-            MessageBox.Show(this, "No songs are available to export.", "Export master.csv", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, "目前沒有歌曲可匯出。", "匯出 master.csv", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var dialog = new SaveFileDialog
         {
-            Title = "Export UTF-8 master.csv",
+            Title = "匯出 UTF-8 master.csv",
             Filter = "CSV UTF-8 (*.csv)|*.csv",
             FileName = "master.csv"
         };
@@ -75,7 +75,7 @@ public partial class MainWindow : Window
         }
 
         CsvExporter.ExportMasterCsv(dialog.FileName, _songs);
-        StatusText.Text = $"Exported {_songs.Count} songs to {dialog.FileName}";
+        StatusText.Text = $"已匯出 {_songs.Count} 首歌曲到 {dialog.FileName}";
     }
 
     private void Window_DragOver(object sender, DragEventArgs e)
@@ -115,7 +115,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            StatusText.Text = $"Importing {files.Count} file(s)...";
+            StatusText.Text = $"正在匯入 {files.Count} 個檔案...";
             var summary = await new ImportEngine().ImportFilesAsync(files, DatabasePath, CancellationToken.None);
 
             _importResults.Clear();
@@ -131,12 +131,12 @@ public partial class MainWindow : Window
             }
 
             RefreshSongs();
-            StatusText.Text = $"Imported {summary.ImportedRows}, updated {summary.UpdatedRows}, duplicates {summary.DuplicateRows}, failed {summary.FailedRows}. Success rate {summary.SuccessRate:0.0}%.";
+            StatusText.Text = $"匯入完成：新增 {summary.ImportedRows}、更新 {summary.UpdatedRows}、重複 {summary.DuplicateRows}、失敗 {summary.FailedRows}，成功率 {summary.SuccessRate:0.0}%。";
         }
         catch (Exception ex)
         {
-            StatusText.Text = "Import failed.";
-            MessageBox.Show(this, ex.Message, "Import failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusText.Text = "匯入失敗。";
+            MessageBox.Show(this, ex.Message, "匯入失敗", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -189,18 +189,18 @@ public partial class MainWindow : Window
         var ownedCount = snapshot.Entries.Count(entry => ApplicationOwnedPathFilter.IsApplicationOwned(entry.Path));
         CommitButton.IsEnabled = ownedCount > 0;
         PushButton.IsEnabled = string.IsNullOrWhiteSpace(snapshot.Error);
-        GitPanelStatusText.Text = $"Branch: {snapshot.BranchName}; Remote: {snapshot.RemoteUrl}; Application-owned changes: {ownedCount}; {snapshot.Error}";
+        GitPanelStatusText.Text = $"分支：{snapshot.BranchName}；遠端：{snapshot.RemoteUrl}；程式管理變更：{ownedCount}；{snapshot.Error}";
     }
 
     private static string BuildGitStatusText()
     {
         var path = GitRepositorySettings.DefaultRepositoryPath;
-        var status = GitRepositorySettings.IsRepository(path) ? "repo detected" : "repo not found";
-        return $"GitHub path: {path} ({status})";
+        var status = GitRepositorySettings.IsRepository(path) ? "已偵測到 Repository" : "找不到 Repository";
+        return $"GitHub 位置：{path}（{status}）";
     }
 
     private static string BuildFooterStatusText()
     {
-        return $"Database: {DatabasePath}";
+        return $"資料庫：{DatabasePath}";
     }
 }
