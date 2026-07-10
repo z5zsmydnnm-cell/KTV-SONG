@@ -59,6 +59,39 @@ public sealed class SongRepository
         return Convert.ToInt32(command.ExecuteScalar());
     }
 
+    public IReadOnlyList<SongRecord> GetAllSongs()
+    {
+        using var connection = KtvDatabase.OpenConnection(_databasePath);
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT s.SongNumber,
+                   s.Title,
+                   COALESCE(a.Name, ''),
+                   s.Language,
+                   b.Code,
+                   COALESCE(v.Code, '')
+            FROM Songs s
+            JOIN Brands b ON b.Id = s.BrandId
+            LEFT JOIN Volumes v ON v.Id = s.VolumeId
+            LEFT JOIN Artists a ON a.Id = s.PrimaryArtistId
+            ORDER BY b.Code, s.SongNumber
+            """;
+        using var reader = command.ExecuteReader();
+        var songs = new List<SongRecord>();
+        while (reader.Read())
+        {
+            songs.Add(new SongRecord(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                reader.GetString(4),
+                reader.GetString(5)));
+        }
+
+        return songs;
+    }
+
     private static long EnsureBrand(SqliteConnection connection, SqliteTransaction transaction, string code, DateTimeOffset now)
     {
         return EnsureLookup(connection, transaction, "Brands", "Code", code, ("DisplayName", code), now);

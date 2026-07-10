@@ -1,5 +1,9 @@
 # Build 002-004 Roadmap
 
+## Status
+
+Build 002-004 implementation is being delivered together on branch `agent/build-001-manager-v6`.
+
 ## Recommended Order
 
 1. Build 002: Import Engine

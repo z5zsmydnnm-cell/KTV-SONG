@@ -117,6 +117,56 @@ public static class KtvDatabase
             CreatedAt TEXT NOT NULL,
             Note TEXT NULL
         )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS PublishHistory (
+            Id INTEGER PRIMARY KEY,
+            Action TEXT NOT NULL,
+            RepositoryPath TEXT NOT NULL,
+            BranchName TEXT NULL,
+            RemoteUrl TEXT NULL,
+            CommitSha TEXT NULL,
+            Message TEXT NULL,
+            SelectedFilesJson TEXT NULL,
+            StartedAt TEXT NOT NULL,
+            FinishedAt TEXT NULL,
+            ExitCode INTEGER NULL,
+            StdOut TEXT NULL,
+            StdErr TEXT NULL,
+            Status TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS PdfPageDiagnostics (
+            Id INTEGER PRIMARY KEY,
+            ImportHistoryId INTEGER NOT NULL,
+            PageNumber INTEGER NOT NULL,
+            TextLayerCharacterCount INTEGER NOT NULL,
+            SongLikeRowCount INTEGER NOT NULL,
+            ParserIssueCount INTEGER NOT NULL,
+            OcrRan INTEGER NOT NULL,
+            OcrCharacterCount INTEGER NOT NULL,
+            Confidence REAL NOT NULL,
+            CreatedAt TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS ManualCorrections (
+            Id INTEGER PRIMARY KEY,
+            ImportHistoryId INTEGER NOT NULL,
+            PageNumber INTEGER NOT NULL,
+            RawText TEXT NOT NULL,
+            OcrText TEXT NULL,
+            SongNumber TEXT NULL,
+            Title TEXT NULL,
+            ArtistName TEXT NULL,
+            Language TEXT NULL,
+            BrandCode TEXT NULL,
+            VolumeCode TEXT NULL,
+            Status TEXT NOT NULL,
+            CreatedAt TEXT NOT NULL,
+            UpdatedAt TEXT NULL
+        )
         """
     ];
 }

@@ -4,11 +4,11 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="KTV Manager Professional Build 001"
-        Height="720"
-        MinHeight="560"
-        Width="1120"
-        MinWidth="920"
+        Title="KTV Manager Professional"
+        Height="760"
+        MinHeight="620"
+        Width="1220"
+        MinWidth="980"
         AllowDrop="True"
         DragOver="Window_DragOver"
         Drop="Window_Drop">
@@ -16,7 +16,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="180" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -29,75 +28,158 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
-                    <TextBlock Text="音圓 PDF 匯入" FontSize="22" FontWeight="SemiBold" Foreground="#20242A" />
+                    <TextBlock Text="KTV Manager Professional" FontSize="22" FontWeight="SemiBold" Foreground="#20242A" />
                     <TextBlock x:Name="StatusText"
                                Margin="0,6,0,0"
                                Foreground="#5B6573"
-                               Text="可從 Windows 檔案總管拖曳 PDF 到此視窗，或按右側按鈕選擇 PDF。" />
+                               Text="Drag PDF, Excel, or CSV files here, or choose files to import." />
                 </StackPanel>
 
                 <Button Grid.Column="1"
                         Width="132"
                         Height="38"
                         Margin="16,0,8,0"
-                        Click="ChoosePdf_Click"
-                        Content="選擇 PDF" />
+                        Click="ChooseFiles_Click"
+                        Content="Import files" />
                 <Button Grid.Column="2"
-                        Width="132"
+                        Width="148"
                         Height="38"
                         Click="ExportCsv_Click"
-                        Content="匯出 master.csv" />
+                        Content="Export master.csv" />
             </Grid>
         </Border>
 
-        <DataGrid x:Name="SongsGrid"
-                  Grid.Row="1"
-                  Margin="18"
-                  AutoGenerateColumns="False"
-                  CanUserAddRows="False"
-                  IsReadOnly="True"
-                  GridLinesVisibility="Horizontal"
-                  HeadersVisibility="Column"
-                  RowHeaderWidth="0">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="歌號" Binding="{Binding SongNumber}" Width="110" />
-                <DataGridTextColumn Header="歌名" Binding="{Binding Title}" Width="2*" />
-                <DataGridTextColumn Header="歌手" Binding="{Binding Artist}" Width="2*" />
-                <DataGridTextColumn Header="語言" Binding="{Binding Language}" Width="90" />
-                <DataGridTextColumn Header="音圓代號" Binding="{Binding BrandCode}" Width="110" />
-                <DataGridTextColumn Header="集數" Binding="{Binding Volume}" Width="90" />
-            </DataGrid.Columns>
-        </DataGrid>
+        <TabControl Grid.Row="1" Margin="18">
+            <TabItem Header="Import">
+                <Grid Margin="0,12,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="150" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="170" />
+                    </Grid.RowDefinitions>
 
-        <Border Grid.Row="2" Margin="18,0,18,18" Background="White" BorderBrush="#D8DEE9" BorderThickness="1">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Top"
-                           Padding="12,10"
-                           FontWeight="SemiBold"
-                           Text="解析失敗行" />
-                <ListBox x:Name="IssuesList"
-                         BorderThickness="0">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock TextWrapping="Wrap">
-                                <Run Text="Line " />
-                                <Run Text="{Binding LineNumber}" />
-                                <Run Text=": " />
-                                <Run Text="{Binding Line}" />
-                                <Run Text=" - " />
-                                <Run Text="{Binding Reason}" />
-                            </TextBlock>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </DockPanel>
-        </Border>
+                    <DataGrid x:Name="ImportResultsGrid"
+                              Grid.Row="0"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column"
+                              RowHeaderWidth="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="File" Binding="{Binding SourceFileName}" Width="2*" />
+                            <DataGridTextColumn Header="Type" Binding="{Binding SourceType}" Width="90" />
+                            <DataGridTextColumn Header="Brand" Binding="{Binding BrandCode}" Width="100" />
+                            <DataGridTextColumn Header="Volume" Binding="{Binding VolumeCode}" Width="90" />
+                            <DataGridTextColumn Header="Rows" Binding="{Binding TotalRows}" Width="80" />
+                            <DataGridTextColumn Header="New" Binding="{Binding ImportedRows}" Width="80" />
+                            <DataGridTextColumn Header="Updated" Binding="{Binding UpdatedRows}" Width="90" />
+                            <DataGridTextColumn Header="Duplicate" Binding="{Binding DuplicateRows}" Width="100" />
+                            <DataGridTextColumn Header="Failed" Binding="{Binding FailedRows}" Width="90" />
+                        </DataGrid.Columns>
+                    </DataGrid>
 
-        <TextBlock Grid.Row="3"
+                    <DataGrid x:Name="SongsGrid"
+                              Grid.Row="1"
+                              Margin="0,12,0,12"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column"
+                              RowHeaderWidth="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Song No" Binding="{Binding SongNumber}" Width="110" />
+                            <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="2*" />
+                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" />
+                            <DataGridTextColumn Header="Language" Binding="{Binding Language}" Width="100" />
+                            <DataGridTextColumn Header="Brand" Binding="{Binding BrandCode}" Width="100" />
+                            <DataGridTextColumn Header="Volume" Binding="{Binding Volume}" Width="90" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Border Grid.Row="2" Background="White" BorderBrush="#D8DEE9" BorderThickness="1">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top"
+                                       Padding="12,10"
+                                       FontWeight="SemiBold"
+                                       Text="Import issues" />
+                            <ListBox x:Name="IssuesList" BorderThickness="0">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock TextWrapping="Wrap">
+                                            <Run Text="Line " />
+                                            <Run Text="{Binding LineNumber}" />
+                                            <Run Text=": " />
+                                            <Run Text="{Binding Line}" />
+                                            <Run Text=" - " />
+                                            <Run Text="{Binding Reason}" />
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="GitHub">
+                <Grid Margin="0,12,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="110" />
+                    </Grid.RowDefinitions>
+                    <DockPanel Grid.Row="0" LastChildFill="False">
+                        <StackPanel DockPanel.Dock="Left">
+                            <TextBlock FontWeight="SemiBold" Text="GitHub Engine" />
+                            <TextBlock x:Name="GitPanelStatusText" Margin="0,8,0,0" Text="{Binding ElementName=GitStatusText, Path=Text}" />
+                        </StackPanel>
+                        <Button DockPanel.Dock="Right" Width="110" Height="34" Margin="8,0,0,0" Click="RefreshGit_Click" Content="Refresh" />
+                        <Button x:Name="CommitButton" DockPanel.Dock="Right" Width="110" Height="34" Margin="8,0,0,0" Click="CommitGit_Click" Content="Commit" />
+                        <Button x:Name="PushButton" DockPanel.Dock="Right" Width="110" Height="34" Margin="8,0,0,0" Click="PushGit_Click" Content="Push" />
+                    </DockPanel>
+                    <DataGrid x:Name="GitStatusGrid"
+                              Grid.Row="1"
+                              Margin="0,12,0,12"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column"
+                              RowHeaderWidth="0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120" />
+                            <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBox x:Name="GitOutputText"
+                             Grid.Row="2"
+                             IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Preview/OCR">
+                <StackPanel Margin="0,12,0,0">
+                    <TextBlock FontWeight="SemiBold" Text="PDF Preview / OCR" />
+                    <TextBlock x:Name="OcrStatusText" Margin="0,8,0,0" />
+                    <Button x:Name="RunOcrButton"
+                            Width="140"
+                            Height="34"
+                            Margin="0,12,0,0"
+                            HorizontalAlignment="Left"
+                            IsEnabled="False"
+                            Content="Run OCR" />
+                    <TextBlock Margin="0,12,0,0" Text="PDF diagnostics and manual correction storage are available in Build 004 core. Full page rendering is the next UI refinement." />
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+
+        <TextBlock Grid.Row="2"
                    Padding="18,0,18,14"
                    Foreground="#687386"
-                   Text="{Binding ElementName=GitStatusText, Path=Text}" />
-        <TextBlock x:Name="GitStatusText"
-                   Visibility="Collapsed" />
+                   Text="{Binding ElementName=FooterStatusText, Path=Text}" />
+        <TextBlock x:Name="GitStatusText" Visibility="Collapsed" />
+        <TextBlock x:Name="FooterStatusText" Visibility="Collapsed" />
     </Grid>
 </Window>
