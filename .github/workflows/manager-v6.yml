@@ -1,0 +1,33 @@
+name: manager-v6
+
+on:
+  push:
+    paths:
+      - "manager-v6/**"
+      - ".github/workflows/manager-v6.yml"
+  pull_request:
+    paths:
+      - "manager-v6/**"
+      - ".github/workflows/manager-v6.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore manager-v6/src/KTVManagerProfessional.sln
+
+      - name: Build
+        run: dotnet build manager-v6/src/KTVManagerProfessional.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test manager-v6/src/KTVManagerProfessional.sln --configuration Release --no-build

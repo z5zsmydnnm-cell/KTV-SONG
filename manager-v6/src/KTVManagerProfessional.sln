@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KTVManagerProfessional.Core", "KTVManagerProfessional.Core\KTVManagerProfessional.Core.csproj", "{0B293F2F-2011-45E4-805C-26DDBBAF754D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KTVManagerProfessional.App", "KTVManagerProfessional.App\KTVManagerProfessional.App.csproj", "{ABE6FA39-28D7-48EC-AAD3-EA475434DBDF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KTVManagerProfessional.Tests", "..\tests\KTVManagerProfessional.Tests\KTVManagerProfessional.Tests.csproj", "{55E16D54-0417-44A6-91E3-871DAEBEA8BA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0B293F2F-2011-45E4-805C-26DDBBAF754D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B293F2F-2011-45E4-805C-26DDBBAF754D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B293F2F-2011-45E4-805C-26DDBBAF754D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0B293F2F-2011-45E4-805C-26DDBBAF754D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ABE6FA39-28D7-48EC-AAD3-EA475434DBDF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ABE6FA39-28D7-48EC-AAD3-EA475434DBDF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ABE6FA39-28D7-48EC-AAD3-EA475434DBDF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ABE6FA39-28D7-48EC-AAD3-EA475434DBDF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{55E16D54-0417-44A6-91E3-871DAEBEA8BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{55E16D54-0417-44A6-91E3-871DAEBEA8BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{55E16D54-0417-44A6-91E3-871DAEBEA8BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{55E16D54-0417-44A6-91E3-871DAEBEA8BA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
