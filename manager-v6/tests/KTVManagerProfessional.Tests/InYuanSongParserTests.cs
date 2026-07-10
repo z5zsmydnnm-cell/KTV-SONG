@@ -71,4 +71,24 @@ public sealed class InYuanSongParserTests
         Assert.Contains("missing title or artist", issue.Reason);
         Assert.Single(result.Songs);
     }
+
+    [Fact]
+    public void ParseText_splits_1326_double_column_lines_at_each_song_number()
+    {
+        var text = """
+        音圓 1326
+        台語
+        201799 快醒雪 202528 美麗與哀愁
+        202519 無字情歌 200853 寸草心
+        202547 愛情支票 200863 這一刻
+        """;
+
+        var result = InYuanSongParser.ParseText(text, "1326.pdf");
+
+        Assert.Empty(result.Issues);
+        Assert.Equal(6, result.Songs.Count);
+        Assert.Contains(new SongRecord("200853", "寸草心", string.Empty, "台語", "音圓", "1326"), result.Songs);
+        Assert.Contains(new SongRecord("201799", "快醒雪", string.Empty, "台語", "音圓", "1326"), result.Songs);
+        Assert.Contains(new SongRecord("202528", "美麗與哀愁", string.Empty, "台語", "音圓", "1326"), result.Songs);
+    }
 }

@@ -16,6 +16,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         SongsGrid.ItemsSource = _songs;
         IssuesList.ItemsSource = _issues;
+        GitStatusText.Text = BuildGitStatusText();
     }
 
     private void ChoosePdf_Click(object sender, RoutedEventArgs e)
@@ -113,5 +114,12 @@ public partial class MainWindow : Window
             StatusText.Text = "PDF 匯入失敗。";
             MessageBox.Show(this, ex.Message, "PDF 匯入失敗", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private static string BuildGitStatusText()
+    {
+        var path = GitRepositorySettings.DefaultRepositoryPath;
+        var status = GitRepositorySettings.IsRepository(path) ? "repo detected" : "repo not found";
+        return $"Build 001: WPF only, .NET 8, PDF import, parser preview, UTF-8 CSV export. GitHub path: {path} ({status}).";
     }
 }

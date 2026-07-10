@@ -96,6 +96,8 @@
         <TextBlock Grid.Row="3"
                    Padding="18,0,18,14"
                    Foreground="#687386"
-                   Text="Build 001: WPF only, .NET 8, PDF import, parser preview, UTF-8 CSV export." />
+                   Text="{Binding ElementName=GitStatusText, Path=Text}" />
+        <TextBlock x:Name="GitStatusText"
+                   Visibility="Collapsed" />
     </Grid>
 </Window>

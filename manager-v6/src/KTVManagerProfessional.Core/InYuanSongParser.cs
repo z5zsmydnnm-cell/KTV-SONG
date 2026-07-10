@@ -41,20 +41,25 @@ public static partial class InYuanSongParser
                 continue;
             }
 
-            var match = SongLineRegex().Match(line);
-            if (!match.Success)
+            var songChunks = SplitSongChunks(line);
+            if (songChunks.Count == 0)
             {
                 continue;
             }
 
+            if (songChunks.Count > 1)
+            {
+                foreach (var chunk in songChunks)
+                {
+                    AddParsedSong(chunk, lines[index].Number, line, currentLanguage, volume, allowMissingArtist: true, songs, issues);
+                }
+
+                continue;
+            }
+
+            var match = SongLineRegex().Match(songChunks[0]);
             var songNumber = match.Groups["number"].Value;
             var firstSegment = match.Groups["rest"].Value.Trim();
-            if (firstSegment.Length == 0)
-            {
-                issues.Add(new ParseIssue(lines[index].Number, line, "Song line is missing title or artist."));
-                continue;
-            }
-
             var parts = new SongParts();
             AddSegment(parts, firstSegment);
 
@@ -88,6 +93,68 @@ public static partial class InYuanSongParser
             .ToList();
 
         return new ParseResult(dedupedSongs, issues);
+    }
+
+    private static IReadOnlyList<string> SplitSongChunks(string line)
+    {
+        var matches = SongStartRegex().Matches(line);
+        if (matches.Count == 0)
+        {
+            return [];
+        }
+
+        var chunks = new List<string>(matches.Count);
+        for (var index = 0; index < matches.Count; index++)
+        {
+            var start = matches[index].Index;
+            var end = index + 1 < matches.Count ? matches[index + 1].Index : line.Length;
+            var chunk = line[start..end].Trim();
+            if (chunk.Length > 0)
+            {
+                chunks.Add(chunk);
+            }
+        }
+
+        return chunks;
+    }
+
+    private static void AddParsedSong(
+        string chunk,
+        int lineNumber,
+        string originalLine,
+        string currentLanguage,
+        string volume,
+        bool allowMissingArtist,
+        List<SongRecord> songs,
+        List<ParseIssue> issues)
+    {
+        var match = SongLineRegex().Match(chunk);
+        if (!match.Success)
+        {
+            issues.Add(new ParseIssue(lineNumber, originalLine, "Song line cannot be split into song number and title."));
+            return;
+        }
+
+        var songNumber = match.Groups["number"].Value;
+        var rest = match.Groups["rest"].Value.Trim();
+        if (rest.Length == 0)
+        {
+            issues.Add(new ParseIssue(lineNumber, originalLine, "Song line is missing title or artist."));
+            return;
+        }
+
+        var parts = new SongParts();
+        AddSegment(parts, rest);
+        var title = Join(parts.TitleParts);
+        var artist = Join(parts.ArtistParts);
+
+        if (title.Length == 0 || (!allowMissingArtist && artist.Length == 0))
+        {
+            issues.Add(new ParseIssue(lineNumber, originalLine, "Song line is missing title or artist."));
+            return;
+        }
+
+        songs.Add(new SongRecord(songNumber, title, artist, currentLanguage, BrandCode, volume));
     }
 
     private static IReadOnlyList<(int Number, string Text)> ToLines(string text)
@@ -193,6 +260,9 @@ public static partial class InYuanSongParser
 
     [GeneratedRegex(@"^(?:[◆◇★☆●◎■□*]+\s*)?(?<number>\d{5,6})(?:\s+(?<rest>.*))?$", RegexOptions.Compiled)]
     private static partial Regex SongLineRegex();
+
+    [GeneratedRegex(@"(?<!\d)(?<number>\d{5,6})(?!\d)", RegexOptions.Compiled)]
+    private static partial Regex SongStartRegex();
 
     [GeneratedRegex(@"\s{2,}", RegexOptions.Compiled)]
     private static partial Regex DoubleSpaceRegex();
