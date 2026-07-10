@@ -77,7 +77,7 @@ public static partial class InYuanSongParser
 
             var title = Join(parts.TitleParts);
             var artist = Join(parts.ArtistParts);
-            if (title.Length == 0 || artist.Length == 0)
+            if (title.Length == 0)
             {
                 issues.Add(new ParseIssue(lines[index].Number, line, "Song line is missing title or artist."));
                 continue;

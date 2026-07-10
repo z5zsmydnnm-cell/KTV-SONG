@@ -12,7 +12,13 @@ public static class ImportRouter
             return new ImportRoute(sourcePath, sourceType, BrandCode.Unknown, IsUnsupported: true, "Unsupported file extension.");
         }
 
-        return new ImportRoute(sourcePath, sourceType, DetectBrand(sourcePath, contentHint), IsUnsupported: false, string.Empty);
+        var brandCode = DetectBrand(sourcePath, contentHint);
+        if (brandCode == BrandCode.Unknown && sourceType == ImportSourceType.Pdf)
+        {
+            brandCode = BrandCode.InYuan;
+        }
+
+        return new ImportRoute(sourcePath, sourceType, brandCode, IsUnsupported: false, string.Empty);
     }
 
     private static ImportSourceType DetectSourceType(string sourcePath)

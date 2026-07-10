@@ -73,6 +73,26 @@ public sealed class InYuanSongParserTests
     }
 
     [Fact]
+    public void ParseText_accepts_single_column_song_without_artist()
+    {
+        var text = """
+        ?喳? 3011
+        ?啗?
+        202569 你就是方向
+        """;
+
+        var result = InYuanSongParser.ParseText(text, "3011.pdf");
+
+        Assert.Empty(result.Issues);
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("202569", song.SongNumber);
+        Assert.Equal("你就是方向", song.Title);
+        Assert.Equal(string.Empty, song.Artist);
+        Assert.Equal(string.Empty, song.Language);
+        Assert.Equal("3011", song.Volume);
+    }
+
+    [Fact]
     public void ParseText_splits_1326_double_column_lines_at_each_song_number()
     {
         var text = """

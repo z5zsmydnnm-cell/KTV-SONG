@@ -15,6 +15,16 @@ public sealed class ImportRouterTests
     }
 
     [Fact]
+    public void Route_defaults_pdf_without_brand_to_inyuan()
+    {
+        var route = ImportRouter.Route(@"D:\in\3011.pdf");
+
+        Assert.Equal(ImportSourceType.Pdf, route.SourceType);
+        Assert.Equal(BrandCode.InYuan, route.BrandCode);
+        Assert.False(route.IsUnsupported);
+    }
+
+    [Fact]
     public void Route_detects_golden_voice_excel_from_filename()
     {
         var route = ImportRouter.Route(@"D:\in\金嗓112.xlsx");
