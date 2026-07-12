@@ -64,9 +64,45 @@ public partial class MainWindow : Window
             return;
         }
 
-        Directory.CreateDirectory(SongsDirectoryPath);
-        CsvExporter.ExportMasterCsv(MasterCsvPath, _songs);
+        SyncMasterCsv();
         StatusText.Text = $"已同步 {_songs.Count} 首歌曲到 {MasterCsvPath}";
+    }
+
+    private void ManualUpsertSong_Click(object sender, RoutedEventArgs e)
+    {
+        var songNumber = ManualSongNumberText.Text.Trim();
+        var title = ManualTitleText.Text.Trim();
+        var artist = ManualArtistText.Text.Trim();
+        var language = ManualLanguageText.Text.Trim();
+        var brand = ManualBrandText.Text.Trim();
+        var volume = ManualVolumeText.Text.Trim();
+
+        if (songNumber.Length == 0 || title.Length == 0)
+        {
+            MessageBox.Show(this, "請至少輸入歌號與歌名。", "手動新增/更新", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var song = new SongRecord(
+            SongNumber: songNumber,
+            Title: title,
+            Artist: artist,
+            Language: string.IsNullOrWhiteSpace(language) ? "Unknown" : language,
+            BrandCode: string.IsNullOrWhiteSpace(brand) ? "音圓" : brand,
+            Volume: volume);
+
+        var result = new SongRepository(DatabasePath).UpsertSong(song, "manual", DateTimeOffset.Now);
+        RefreshSongs();
+        SyncMasterCsv();
+        StatusText.Text = result.Status == SongWriteStatus.New
+            ? $"已手動新增 {song.SongNumber} {song.Title}，並同步到 {MasterCsvPath}"
+            : $"已手動更新 {song.SongNumber} {song.Title}，並同步到 {MasterCsvPath}";
+
+        ManualSongNumberText.Clear();
+        ManualTitleText.Clear();
+        ManualArtistText.Clear();
+        ManualVolumeText.Clear();
+        ManualSongNumberText.Focus();
     }
 
     private async void ReadSongsFolder_Click(object sender, RoutedEventArgs e)
@@ -170,6 +206,12 @@ public partial class MainWindow : Window
         {
             _songs.Add(song);
         }
+    }
+
+    private void SyncMasterCsv()
+    {
+        Directory.CreateDirectory(SongsDirectoryPath);
+        CsvExporter.ExportMasterCsv(MasterCsvPath, _songs);
     }
 
     private async void RefreshGit_Click(object sender, RoutedEventArgs e)

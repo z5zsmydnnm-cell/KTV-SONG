@@ -12,8 +12,11 @@ public sealed class MainWindowLocalizationTests
         Assert.Contains("選擇檔案", xaml);
         Assert.Contains("讀取 songs", xaml);
         Assert.Contains("同步 master.csv", xaml);
+        Assert.Contains("手動新增/更新", xaml);
         Assert.Contains("歌號", xaml);
         Assert.Contains("解析失敗行", xaml);
+        Assert.Contains("ManualUpsertSong_Click", codeBehind);
+        Assert.Contains("SyncMasterCsv", codeBehind);
         Assert.Contains("正在匯入", codeBehind);
         Assert.Contains("匯入完成", codeBehind);
 
