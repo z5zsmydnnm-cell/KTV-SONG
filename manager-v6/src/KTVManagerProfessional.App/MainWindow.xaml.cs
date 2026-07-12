@@ -17,6 +17,8 @@ public partial class MainWindow : Window
         "manager-v6",
         "data",
         "ktv-manager-v6.sqlite");
+    private static readonly string SongsDirectoryPath = SongLibraryPaths.DefaultSongsDirectoryPath;
+    private static readonly string MasterCsvPath = SongLibraryPaths.DefaultMasterCsvPath;
 
     private readonly ObservableCollection<SongRecord> _songs = [];
     private readonly ObservableCollection<ParseIssue> _issues = [];
@@ -62,20 +64,32 @@ public partial class MainWindow : Window
             return;
         }
 
-        var dialog = new SaveFileDialog
-        {
-            Title = "匯出 UTF-8 master.csv",
-            Filter = "CSV UTF-8 (*.csv)|*.csv",
-            FileName = "master.csv"
-        };
+        Directory.CreateDirectory(SongsDirectoryPath);
+        CsvExporter.ExportMasterCsv(MasterCsvPath, _songs);
+        StatusText.Text = $"已同步 {_songs.Count} 首歌曲到 {MasterCsvPath}";
+    }
 
-        if (dialog.ShowDialog(this) != true)
+    private async void ReadSongsFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (!Directory.Exists(SongsDirectoryPath))
         {
+            MessageBox.Show(this, $"找不到 songs 資料夾：{SongsDirectoryPath}", "讀取 songs", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        CsvExporter.ExportMasterCsv(dialog.FileName, _songs);
-        StatusText.Text = $"已匯出 {_songs.Count} 首歌曲到 {dialog.FileName}";
+        var files = Directory
+            .EnumerateFiles(SongsDirectoryPath)
+            .Where(IsSupportedImportFile)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            MessageBox.Show(this, $"songs 資料夾沒有 PDF、Excel 或 CSV 檔案：{SongsDirectoryPath}", "讀取 songs", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        await ImportFilesAsync(files);
     }
 
     private void Window_DragOver(object sender, DragEventArgs e)
@@ -109,6 +123,15 @@ public partial class MainWindow : Window
     private static bool IsSupportedOrReportable(string path)
     {
         return File.Exists(path);
+    }
+
+    private static bool IsSupportedImportFile(string path)
+    {
+        return Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".pdf" or ".xlsx" or ".xls" or ".csv" => true,
+            _ => false
+        };
     }
 
     private async Task ImportFilesAsync(IReadOnlyList<string> files)
@@ -201,6 +224,6 @@ public partial class MainWindow : Window
 
     private static string BuildFooterStatusText()
     {
-        return $"資料庫：{DatabasePath}";
+        return $"資料庫：{DatabasePath}；songs：{SongsDirectoryPath}";
     }
 }

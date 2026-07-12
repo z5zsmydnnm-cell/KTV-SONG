@@ -26,6 +26,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
@@ -43,10 +44,16 @@
                         Click="ChooseFiles_Click"
                         Content="選擇檔案" />
                 <Button Grid.Column="2"
+                        Width="132"
+                        Height="38"
+                        Margin="0,0,8,0"
+                        Click="ReadSongsFolder_Click"
+                        Content="讀取 songs" />
+                <Button Grid.Column="3"
                         Width="148"
                         Height="38"
                         Click="ExportCsv_Click"
-                        Content="匯出 master.csv" />
+                        Content="同步 master.csv" />
             </Grid>
         </Border>
 

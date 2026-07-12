@@ -10,7 +10,8 @@ public sealed class MainWindowLocalizationTests
         var codeBehind = File.ReadAllText(Path.Combine(root, "src", "KTVManagerProfessional.App", "MainWindow.xaml.cs"));
 
         Assert.Contains("選擇檔案", xaml);
-        Assert.Contains("匯出 master.csv", xaml);
+        Assert.Contains("讀取 songs", xaml);
+        Assert.Contains("同步 master.csv", xaml);
         Assert.Contains("歌號", xaml);
         Assert.Contains("解析失敗行", xaml);
         Assert.Contains("正在匯入", codeBehind);
