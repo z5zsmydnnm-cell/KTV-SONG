@@ -16,6 +16,23 @@ public static partial class InYuanSongParser
         "歌曲類型說明"
     ];
 
+    private static readonly string[] OldCatalogRhythmSuffixes =
+    [
+        "Slow Disco",
+        "Slow Rock",
+        "Slow Soul",
+        "Cha Cha",
+        "Tango",
+        "Samba",
+        "Soul",
+        "Waltz",
+        "Trot",
+        "Rock",
+        "Disco",
+        "R&B",
+        "Shuffle"
+    ];
+
     public static ParseResult ParseText(string text, string sourceName)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -25,6 +42,7 @@ public static partial class InYuanSongParser
         var issues = new List<ParseIssue>();
         var currentLanguage = string.Empty;
         var lines = ToLines(text);
+        songs.AddRange(ParseOldCatalogBlocks(lines, volume));
 
         for (var index = 0; index < lines.Count; index++)
         {
@@ -38,6 +56,12 @@ public static partial class InYuanSongParser
 
             if (ShouldIgnore(line) || IsDocumentHeading(line))
             {
+                continue;
+            }
+
+            if (TryParseOldCatalogRow(line, currentLanguage, volume, out var oldCatalogSong))
+            {
+                songs.Add(oldCatalogSong);
                 continue;
             }
 
@@ -218,6 +242,306 @@ public static partial class InYuanSongParser
         return textMatch.Success ? textMatch.Groups["volume"].Value : string.Empty;
     }
 
+    private static bool TryParseOldCatalogRow(string line, string currentLanguage, string volume, out SongRecord song)
+    {
+        song = default!;
+
+        var match = OldCatalogLineRegex().Match(line);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        var partsMatch = OldCatalogPartsRegex().Match(match.Groups["rest"].Value.Trim());
+        if (!partsMatch.Success)
+        {
+            return false;
+        }
+
+        var title = partsMatch.Groups["title"].Value.Trim();
+        var artist = StripOldCatalogRhythm(partsMatch.Groups["artist"].Value);
+        if (title.Length == 0 || artist.Length == 0)
+        {
+            return false;
+        }
+
+        song = new SongRecord(
+            match.Groups["number"].Value,
+            title,
+            artist,
+            NormalizeOldCatalogLanguage(partsMatch.Groups["language"].Value, currentLanguage),
+            BrandCode,
+            volume);
+        return true;
+    }
+
+    private static IReadOnlyList<SongRecord> ParseOldCatalogBlocks(IReadOnlyList<(int Number, string Text)> lines, string volume)
+    {
+        var songs = new List<SongRecord>();
+        var block = new List<string>();
+        var inBlock = false;
+        var pendingLanguage = string.Empty;
+        var blockLanguage = string.Empty;
+
+        foreach (var line in lines.Select(item => item.Text))
+        {
+            if (TryDetectOldCatalogLanguageLine(line, out var detectedLanguage))
+            {
+                pendingLanguage = detectedLanguage;
+                if (inBlock)
+                {
+                    block.Add(line);
+                }
+
+                continue;
+            }
+
+            if (TryStartOldCatalogBlock(line, out var rest))
+            {
+                AddOldCatalogBlock(block, volume, blockLanguage, songs);
+                block.Clear();
+                inBlock = true;
+                blockLanguage = pendingLanguage;
+                if (TryDetectOldCatalogLanguageLine(rest, out var markerLanguage))
+                {
+                    blockLanguage = markerLanguage;
+                }
+                else if (rest.Length > 0)
+                {
+                    block.Add(rest);
+                }
+
+                continue;
+            }
+
+            if (inBlock)
+            {
+                block.Add(line);
+            }
+        }
+
+        AddOldCatalogBlock(block, volume, blockLanguage, songs);
+        return songs;
+    }
+
+    private static void AddOldCatalogBlock(List<string> block, string volume, string language, List<SongRecord> songs)
+    {
+        if (TryParseOldCatalogBlock(block, volume, language, out var song))
+        {
+            songs.Add(song);
+        }
+    }
+
+    private static bool TryParseOldCatalogBlock(IReadOnlyList<string> block, string volume, string fallbackLanguage, out SongRecord song)
+    {
+        song = default!;
+        if (block.Count == 0)
+        {
+            return false;
+        }
+
+        var lines = block
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0 && !IsOldCatalogFooter(line))
+            .ToList();
+        var language = fallbackLanguage;
+        for (var index = 0; index < lines.Count; index++)
+        {
+            if (TryDetectOldCatalogLanguageLine(lines[index], out var detectedLanguage))
+            {
+                language = detectedLanguage;
+                lines[index] = string.Empty;
+            }
+        }
+
+        var number = string.Empty;
+        var numberLineIndex = -1;
+        var numberLineRemainder = string.Empty;
+        for (var index = 0; index < lines.Count; index++)
+        {
+            var numberMatch = OldCatalogNumberTokenRegex().Match(lines[index]);
+            if (!numberMatch.Success)
+            {
+                continue;
+            }
+
+            number = numberMatch.Groups["number"].Value;
+            lines[index] = OldCatalogNumberTokenRegex().Replace(lines[index], string.Empty, 1).Trim();
+            numberLineIndex = index;
+            numberLineRemainder = lines[index];
+            break;
+        }
+
+        if (number.Length == 0)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < lines.Count; index++)
+        {
+            var titleLanguageMatch = OldCatalogTitleLanguageRegex().Match(lines[index]);
+            if (!titleLanguageMatch.Success)
+            {
+                continue;
+            }
+
+            var title = titleLanguageMatch.Groups["title"].Value.Trim();
+            var artist = titleLanguageMatch.Groups["artist"].Value.Trim();
+            if (artist.Length == 0 && index > 0)
+            {
+                artist = string.Join(' ', lines.Take(index));
+            }
+
+            artist = StripOldCatalogRhythm(artist);
+            if (title.Length == 0 || artist.Length == 0)
+            {
+                return false;
+            }
+
+            song = new SongRecord(
+                number,
+                title,
+                artist,
+                NormalizeOldCatalogLanguage(titleLanguageMatch.Groups["language"].Value, string.Empty),
+                BrandCode,
+                volume);
+            return true;
+        }
+
+        return language.Length > 0 &&
+            TryParseOldCatalogBlockWithoutLanguage(lines, number, numberLineIndex, numberLineRemainder, language, volume, out song);
+    }
+
+    private static bool TryStartOldCatalogBlock(string line, out string rest)
+    {
+        var value = line.Trim();
+        if (value.Length == 0 || !IsOldCatalogMarker(value[0]))
+        {
+            rest = string.Empty;
+            return false;
+        }
+
+        rest = value[1..].Trim();
+        return true;
+    }
+
+    private static bool IsOldCatalogMarker(char value)
+    {
+        return value is '\u25cf' or '\u25cb' or '\u2605' or '\u25c6' or '\u25c7' or '*';
+    }
+
+    private static bool TryParseOldCatalogBlockWithoutLanguage(
+        IReadOnlyList<string> lines,
+        string number,
+        int numberLineIndex,
+        string numberLineRemainder,
+        string language,
+        string volume,
+        out SongRecord song)
+    {
+        song = default!;
+        var title = string.Empty;
+        var artist = string.Empty;
+
+        if (numberLineRemainder.Length > 0 && numberLineIndex > 0)
+        {
+            title = numberLineRemainder;
+            artist = StripOldCatalogRhythm(string.Join(' ', lines.Take(numberLineIndex).Where(line => line.Length > 0)));
+        }
+        else
+        {
+            var content = lines.Where(line => line.Length > 0).ToList();
+            if (content.Count >= 2 && EndsWithOldCatalogRhythm(content[0]))
+            {
+                artist = StripOldCatalogRhythm(content[0]);
+                title = content[1].Trim();
+            }
+            else if (content.Count == 1)
+            {
+                TrySplitOldCatalogTitleArtistLine(content[0], out title, out artist);
+            }
+        }
+
+        if (title.Length == 0 || artist.Length == 0)
+        {
+            return false;
+        }
+
+        song = new SongRecord(number, title, artist, language, BrandCode, volume);
+        return true;
+    }
+
+    private static bool TrySplitOldCatalogTitleArtistLine(string line, out string title, out string artist)
+    {
+        var value = StripOldCatalogRhythm(line);
+        var delimiter = value.LastIndexOf(' ');
+        if (delimiter <= 0 || delimiter >= value.Length - 1)
+        {
+            title = string.Empty;
+            artist = string.Empty;
+            return false;
+        }
+
+        title = value[..delimiter].Trim();
+        artist = value[(delimiter + 1)..].Trim();
+        return title.Length > 0 && artist.Length > 0;
+    }
+
+    private static bool EndsWithOldCatalogRhythm(string value)
+    {
+        return OldCatalogRhythmSuffixes.Any(suffix => value.EndsWith(" " + suffix, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool TryDetectOldCatalogLanguageLine(string line, out string language)
+    {
+        language = NormalizeOldCatalogLanguage(line.Trim(), string.Empty);
+        return language.Length > 0;
+    }
+
+    private static bool IsOldCatalogFooter(string line)
+    {
+        return line.Contains("代表", StringComparison.Ordinal) ||
+            line.Contains("合法", StringComparison.Ordinal) ||
+            line.Contains("專輯", StringComparison.Ordinal) ||
+            line.Contains("MIDI", StringComparison.Ordinal) ||
+            line.Contains("貼紙", StringComparison.Ordinal) ||
+            line.Contains("Singing", StringComparison.OrdinalIgnoreCase) ||
+            line.Contains("歌 號", StringComparison.Ordinal) ||
+            line.Contains("有無", StringComparison.Ordinal) ||
+            line.Equals("人聲", StringComparison.Ordinal);
+    }
+
+    private static string NormalizeOldCatalogLanguage(string language, string fallback)
+    {
+        if (language is "\u53f0\u8a9e" or "\u570b\u8a9e" or "\u83ef\u8a9e" or "\u5ba2\u8a9e")
+        {
+            return language;
+        }
+
+        return language switch
+        {
+            "台" => "台語",
+            "國" or "国" => "國語",
+            "華" or "华" => "華語",
+            "客" => "客語",
+            _ => fallback
+        };
+    }
+
+    private static string StripOldCatalogRhythm(string artist)
+    {
+        var value = artist.Trim();
+        foreach (var suffix in OldCatalogRhythmSuffixes)
+        {
+            if (value.EndsWith(" " + suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                return value[..^suffix.Length].Trim();
+            }
+        }
+
+        return value;
+    }
+
     private static void AddSegment(SongParts parts, string segment)
     {
         var delimiter = DoubleSpaceRegex().Match(segment);
@@ -268,6 +592,18 @@ public static partial class InYuanSongParser
 
     [GeneratedRegex(@"(?<!\d)(?<number>\d{5,6})(?!\d)", RegexOptions.Compiled)]
     private static partial Regex SongStartRegex();
+
+    [GeneratedRegex(@"^(?:[\u25cf\u25cb\u2605\u25c6\u25c7*]\s*)?(?<number>\d{4})\s+(?<rest>.+)$", RegexOptions.Compiled)]
+    private static partial Regex OldCatalogLineRegex();
+
+    [GeneratedRegex(@"^(?<title>.+?)\s+(?<language>台|國|国|華|华|客)\s+(?<artist>.+)$", RegexOptions.Compiled)]
+    private static partial Regex OldCatalogPartsRegex();
+
+    [GeneratedRegex(@"(?<!\d)(?<number>\d{4})(?!\d)", RegexOptions.Compiled)]
+    private static partial Regex OldCatalogNumberTokenRegex();
+
+    [GeneratedRegex(@"^(?<title>.+?)\s+(?<language>\u53f0\u8a9e|\u570b\u8a9e|\u83ef\u8a9e|\u5ba2\u8a9e|\u53f0|\u570b|\u56fd|\u83ef|\u534e|\u5ba2)(?:\s+(?<artist>.*))?$", RegexOptions.Compiled)]
+    private static partial Regex OldCatalogTitleLanguageRegex();
 
     [GeneratedRegex(@"\s{2,}", RegexOptions.Compiled)]
     private static partial Regex DoubleSpaceRegex();

@@ -128,4 +128,84 @@ public sealed class InYuanSongParserTests
         Assert.Equal(0, issue.LineNumber);
         Assert.Contains("No song rows matched", issue.Reason);
     }
+
+    [Fact]
+    public void ParseText_supports_old_four_digit_inyuan_catalog_rows()
+    {
+        var text = """
+        Singing and you will see!!
+        Song No Title Language Artist Rhythm
+        ● 6434 舞伴 台 袁小迪 Tango
+        ● 3707 Little Darling 國 林國榮 Slow Soul
+        台語歌曲 【 第 1102 集專輯 】
+        """;
+
+        var result = InYuanSongParser.ParseText(text, "1102.pdf");
+
+        Assert.Empty(result.Issues);
+        Assert.Equal(2, result.Songs.Count);
+        Assert.Contains(new SongRecord("6434", "舞伴", "袁小迪", "台語", "音圓", "1102"), result.Songs);
+        Assert.Contains(new SongRecord("3707", "Little Darling", "林國榮", "國語", "音圓", "1102"), result.Songs);
+    }
+
+    [Fact]
+    public void ParseText_supports_old_inyuan_rows_split_by_itext_extraction()
+    {
+        var text = """
+        Singing and you will see!
+        ●
+        舞伴 台 袁小迪 Tango
+        6434
+        ●
+        七郎 Soul
+        爽就好 台
+        6162
+        ●
+        林國榮 Slow Soul
+        Little Darling 國
+        3707
+        ○
+        狼 國語 齊秦 Slow Soul
+        3516
+        台語歌曲
+        【 第 1102集專輯 】
+        """;
+
+        var result = InYuanSongParser.ParseText(text, "1102.pdf");
+
+        Assert.Empty(result.Issues);
+        Assert.Equal(4, result.Songs.Count);
+        Assert.Contains(new SongRecord("6434", "舞伴", "袁小迪", "台語", "音圓", "1102"), result.Songs);
+        Assert.Contains(new SongRecord("6162", "爽就好", "七郎", "台語", "音圓", "1102"), result.Songs);
+        Assert.Contains(new SongRecord("3707", "Little Darling", "林國榮", "國語", "音圓", "1102"), result.Songs);
+        Assert.Contains(new SongRecord("3516", "狼", "齊秦", "國語", "音圓", "1102"), result.Songs);
+    }
+
+    [Fact]
+    public void ParseText_supports_old_inyuan_rows_with_separate_language_lines()
+    {
+        var text = """
+        台語
+        ○
+        往事 黃乙玲 Slow Soul
+        6359
+        台語
+        ○
+        王建傑.詹曼鈴 Slow Soul
+        夢中網
+        6366
+        ○ 台語
+        慕鈺華 Tango
+        6351 無心花
+        MIDI 專輯(第 1012集)
+        """;
+
+        var result = InYuanSongParser.ParseText(text, "1012.pdf");
+
+        Assert.Empty(result.Issues);
+        Assert.Equal(3, result.Songs.Count);
+        Assert.Contains(new SongRecord("6359", "往事", "黃乙玲", "台語", "音圓", "1012"), result.Songs);
+        Assert.Contains(new SongRecord("6366", "夢中網", "王建傑.詹曼鈴", "台語", "音圓", "1012"), result.Songs);
+        Assert.Contains(new SongRecord("6351", "無心花", "慕鈺華", "台語", "音圓", "1012"), result.Songs);
+    }
 }
