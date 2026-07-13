@@ -214,7 +214,16 @@ public partial class MainWindow : Window
             }
 
             RefreshSongs();
-            StatusText.Text = $"匯入完成：新增 {summary.ImportedRows}、更新 {summary.UpdatedRows}、重複 {summary.DuplicateRows}、失敗 {summary.FailedRows}，成功率 {summary.SuccessRate:0.0}%。";
+            var changedRows = summary.ImportedRows + summary.UpdatedRows;
+            if (changedRows > 0)
+            {
+                SyncMasterCsv();
+            }
+
+            StatusText.Text = changedRows > 0
+                ? $"匯入完成並已同步 CSV：新增 {summary.ImportedRows}、更新 {summary.UpdatedRows}、重複 {summary.DuplicateRows}、失敗 {summary.FailedRows}，成功率 {summary.SuccessRate:0.0}%。"
+                : $"匯入完成：新增 {summary.ImportedRows}、更新 {summary.UpdatedRows}、重複 {summary.DuplicateRows}、失敗 {summary.FailedRows}，成功率 {summary.SuccessRate:0.0}%。";
+            await RefreshGitAsync();
         }
         catch (Exception ex)
         {
