@@ -2,13 +2,12 @@ namespace KTVManagerProfessional.Core;
 
 public static class SongsFolderImportFilter
 {
-    private static readonly HashSet<string> GeneratedSongsFiles = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> GeneratedSongExportFiles = new(StringComparer.OrdinalIgnoreCase)
     {
         "master.csv",
         "音圓.csv",
         "金嗓.csv",
-        "弘音.csv",
-        "iphone-local-songs.csv"
+        "弘音.csv"
     };
 
     public static bool IsImportSourceFile(string path)
@@ -24,6 +23,6 @@ public static class SongsFolderImportFilter
             return false;
         }
 
-        return !GeneratedSongsFiles.Contains(Path.GetFileName(path));
+        return !GeneratedSongExportFiles.Contains(Path.GetFileName(path));
     }
 }

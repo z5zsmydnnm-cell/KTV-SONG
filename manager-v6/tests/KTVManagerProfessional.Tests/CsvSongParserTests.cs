@@ -22,4 +22,24 @@ public sealed class CsvSongParserTests
         Assert.Equal("1356", song.Volume);
         Assert.Equal(BrandCode.InYuan, song.BrandCode);
     }
+
+    [Fact]
+    public void ParseFile_reads_iphone_local_song_codes_and_skips_rows_without_codes()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"iphone-local-songs-{Guid.NewGuid():N}.csv");
+        File.WriteAllText(
+            path,
+            "歌名,歌手,語言,音圓代號,金嗓代號,弘音代號,YouTube,備註\r\n" +
+            "一個人,,,,,,https://youtu.be/example,\r\n" +
+            "一次就好,,國語,,1233,,,\r\n");
+
+        var result = new CsvSongParser().ParseFile(path, BrandCode.InYuan);
+
+        Assert.Empty(result.Issues);
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("1233", song.SongNumber);
+        Assert.Equal("一次就好", song.Title);
+        Assert.Equal("國語", song.Language);
+        Assert.Equal(BrandCode.GoldenVoice, song.BrandCode);
+    }
 }

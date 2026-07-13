@@ -9,8 +9,7 @@ public sealed class SongsFolderImportFilterTests
     [InlineData("音圓.csv")]
     [InlineData("金嗓.csv")]
     [InlineData("弘音.csv")]
-    [InlineData("iphone-local-songs.csv")]
-    public void IsImportSourceFile_excludes_generated_song_sync_files(string fileName)
+    public void IsImportSourceFile_excludes_generated_song_export_files(string fileName)
     {
         var path = CreateTempFile(fileName);
 
@@ -20,6 +19,7 @@ public sealed class SongsFolderImportFilterTests
     [Theory]
     [InlineData("1140.pdf")]
     [InlineData("custom.csv")]
+    [InlineData("iphone-local-songs.csv")]
     [InlineData("songs.xlsx")]
     public void IsImportSourceFile_allows_real_import_sources(string fileName)
     {
