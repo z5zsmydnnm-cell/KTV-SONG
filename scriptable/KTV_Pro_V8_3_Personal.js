@@ -7,6 +7,8 @@ const REPO = "KTV-SONG";
 const BRANCH = "main";
 const BASE = "https://raw.githubusercontent.com/" + OWNER + "/" + REPO + "/" + BRANCH;
 const CSV_URL = BASE + "/songs/master.csv";
+const IPHONE_CSV_REPO_PATH = "songs/iphone-local-songs.csv";
+const IPHONE_CSV_URL = BASE + "/" + IPHONE_CSV_REPO_PATH;
 const VERSION_URL = BASE + "/version.json";
 
 const fm = FileManager.iCloud();
@@ -17,6 +19,7 @@ if (!fm.fileExists(dataDir)) fm.createDirectory(dataDir);
 
 const csvPath = fm.joinPath(dataDir, "master.csv");
 const localCsvPath = fm.joinPath(dataDir, "local_songs.csv");
+const githubLocalCsvPath = fm.joinPath(dataDir, "github_local_songs.csv");
 const favPath = fm.joinPath(dataDir, "favorites.json");
 const queuePath = fm.joinPath(dataDir, "queue.json");
 const recentPath = fm.joinPath(dataDir, "recent.json");
@@ -48,6 +51,7 @@ async function mainMenu() {
       "我的最愛：" + favorites.length + " 首";
 
     a.addAction("更新 GitHub 歌庫");
+    a.addAction("同步本機到 GitHub");
     a.addAction("從 iPhone 檔案匯入 CSV");
     a.addAction("匯入本機 CSV 歌單");
     a.addAction("手動新增歌曲");
@@ -66,18 +70,19 @@ async function mainMenu() {
     if (r < 0) return;
 
     if (r === 0) await updateLibrary();
-    if (r === 1) await importCSVFromFiles();
-    if (r === 2) await importLocalCSV();
-    if (r === 3) await manualAddSong();
-    if (r === 4) await searchFlow();
-    if (r === 5) await youtubeFavoriteMenu();
-    if (r === 6) await listSongs(favorites, "我的最愛");
-    if (r === 7) await queueMenu();
-    if (r === 8) await listSongs(recent, "最近點唱");
-    if (r === 9) await showStats();
-    if (r === 10) await showAppleTV();
-    if (r === 11) await settingMenu();
-    if (r === 12) await versionInfo();
+    if (r === 1) await syncLocalToGitHub();
+    if (r === 2) await importCSVFromFiles();
+    if (r === 3) await importLocalCSV();
+    if (r === 4) await manualAddSong();
+    if (r === 5) await searchFlow();
+    if (r === 6) await youtubeFavoriteMenu();
+    if (r === 7) await listSongs(favorites, "我的最愛");
+    if (r === 8) await queueMenu();
+    if (r === 9) await listSongs(recent, "最近點唱");
+    if (r === 10) await showStats();
+    if (r === 11) await showAppleTV();
+    if (r === 12) await settingMenu();
+    if (r === 13) await versionInfo();
   }
 }
 
@@ -212,6 +217,12 @@ async function loadSongs() {
     } catch (e) {}
   }
 
+  if (fm.fileExists(githubLocalCsvPath)) {
+    try {
+      songs = songs.concat(csvToSongs(fm.readString(githubLocalCsvPath)));
+    } catch (e) {}
+  }
+
   if (fm.fileExists(localCsvPath)) {
     try {
       localSongs = csvToSongs(fm.readString(localCsvPath));
@@ -235,25 +246,64 @@ function saveLocalSongs() {
 
 async function updateLibrary() {
   try {
-    let url = CSV_URL + "?t=" + Date.now();
-    let req = new Request(url);
-    req.headers = {
-      "Cache-Control": "no-cache",
-      "Pragma": "no-cache"
-    };
-
-    let txt = await req.loadString();
-    let status = req.response ? req.response.statusCode : 200;
-    if (status >= 400) throw new Error("HTTP " + status + " " + CSV_URL);
-
+    let txt = await fetchTextNoCache(CSV_URL, false);
     let rows = csvToSongs(txt);
     if (rows.length === 0) throw new Error("GitHub CSV 已下載，但解析後是 0 首。請確認 songs/master.csv 欄位。");
 
     fm.writeString(csvPath, txt);
+
+    let iphoneRows = [];
+    let iphoneTxt = await fetchTextNoCache(IPHONE_CSV_URL, true);
+    if (iphoneTxt !== null) {
+      iphoneRows = csvToSongs(iphoneTxt);
+      fm.writeString(githubLocalCsvPath, iphoneTxt);
+    }
+
     await loadSongs();
-    await msg("更新完成", "GitHub 讀取成功\n本次解析：" + rows.length + " 首\n目前共：" + songs.length + " 首\n分支：" + BRANCH);
+    await msg("更新完成", "GitHub 讀取成功\n主歌庫：" + rows.length + " 首\niPhone 同步：" + iphoneRows.length + " 首\n目前共：" + songs.length + " 首\n分支：" + BRANCH);
   } catch (e) {
     await msg("更新失敗", String(e) + "\n\nURL:\n" + CSV_URL);
+  }
+}
+
+async function syncLocalToGitHub() {
+  try {
+    if (fm.fileExists(localCsvPath)) {
+      localSongs = csvToSongs(fm.readString(localCsvPath));
+    }
+
+    if (!localSongs || localSongs.length === 0) {
+      await msg("沒有可同步資料", "目前沒有 iPhone 手動新增/修改的本機歌曲。");
+      return;
+    }
+
+    let token = await getGitHubToken();
+    if (!token) return;
+
+    let csv = songsToScriptableCsv(dedupeSongs(localSongs));
+    let apiUrl = "https://api.github.com/repos/" + OWNER + "/" + REPO + "/contents/" + IPHONE_CSV_REPO_PATH;
+    let sha = "";
+
+    try {
+      let existing = await githubJson("GET", apiUrl + "?ref=" + encodeURIComponent(BRANCH), token, null);
+      sha = existing && existing.sha ? existing.sha : "";
+    } catch (e) {
+      // 404 means the file does not exist yet. Other errors will be caught by PUT if permissions are wrong.
+    }
+
+    let body = {
+      message: "data: sync iphone local songs " + new Date().toISOString(),
+      content: Data.fromString(csv).toBase64String(),
+      branch: BRANCH
+    };
+    if (sha) body.sha = sha;
+
+    await githubJson("PUT", apiUrl, token, body);
+    fm.writeString(githubLocalCsvPath, csv);
+    await loadSongs();
+    await msg("同步完成", "已同步 " + localSongs.length + " 首到 GitHub：\n" + IPHONE_CSV_REPO_PATH);
+  } catch (e) {
+    await msg("同步失敗", String(e) + "\n\n請確認 GitHub Token 有 Contents Read/Write 權限。");
   }
 }
 
@@ -443,16 +493,21 @@ async function settingMenu() {
   a.title = "設定";
   a.message =
     "GitHub CSV:\n" + CSV_URL +
+    "\n\niPhone 同步檔:\n" + IPHONE_CSV_REPO_PATH +
     "\n\n本機資料夾:\nKTV_PRO_V8" +
-    "\n\n目前歌庫：" + songs.length + " 首";
+    "\n\n目前歌庫：" + songs.length + " 首" +
+    "\nGitHub Token：" + (settings.githubToken ? "已設定" : "未設定");
   a.addAction("刪除 GitHub 快取 master.csv");
   a.addAction("重設刪除紀錄");
+  a.addAction("設定/更換 GitHub Token");
+  a.addDestructiveAction("清除 GitHub Token");
   a.addCancelAction("返回");
   let r = await a.presentSheet();
   if (r < 0) return;
 
   if (r === 0) {
     if (fm.fileExists(csvPath)) fm.remove(csvPath);
+    if (fm.fileExists(githubLocalCsvPath)) fm.remove(githubLocalCsvPath);
     await loadSongs();
     await msg("已刪除快取", "請重新更新 GitHub 歌庫");
   }
@@ -461,6 +516,15 @@ async function settingMenu() {
     saveJson(deletedPath, deletedKeys);
     await loadSongs();
     await msg("已重設", "刪除紀錄已清空");
+  }
+  if (r === 2) {
+    settings.githubToken = "";
+    await getGitHubToken();
+  }
+  if (r === 3) {
+    settings.githubToken = "";
+    saveJson(settingPath, settings);
+    await msg("已清除", "GitHub Token 已清除");
   }
 }
 
@@ -475,6 +539,66 @@ async function versionInfo() {
   await msg("版本資訊", APP + "\n分支：" + BRANCH + "\n\n" + info);
 }
 
+async function fetchTextNoCache(url, allowNotFound) {
+  let req = new Request(url + "?t=" + Date.now());
+  req.headers = {
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache"
+  };
+  let txt = await req.loadString();
+  let status = req.response ? req.response.statusCode : 200;
+  if (status === 404 && allowNotFound) return null;
+  if (status >= 400) throw new Error("HTTP " + status + " " + url);
+  return txt;
+}
+
+async function getGitHubToken() {
+  if (settings.githubToken && String(settings.githubToken).trim() !== "") {
+    return String(settings.githubToken).trim();
+  }
+
+  let token = await prompt(
+    "GitHub Token",
+    "請貼上 GitHub fine-grained token。需要 Repository Contents: Read and write 權限。",
+    ""
+  );
+  if (token === null || token.trim() === "") return "";
+
+  settings.githubToken = token.trim();
+  saveJson(settingPath, settings);
+  return settings.githubToken;
+}
+
+async function githubJson(method, url, token, body) {
+  let req = new Request(url);
+  req.method = method;
+  req.headers = {
+    "Accept": "application/vnd.github+json",
+    "Authorization": "Bearer " + token,
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "KTV-Pro-Scriptable"
+  };
+  if (body !== null && body !== undefined) {
+    req.headers["Content-Type"] = "application/json";
+    req.body = JSON.stringify(body);
+  }
+
+  let txt = await req.loadString();
+  let status = req.response ? req.response.statusCode : 200;
+  let data = {};
+  try {
+    data = txt ? JSON.parse(txt) : {};
+  } catch (e) {
+    data = { raw: txt };
+  }
+
+  if (status >= 400) {
+    let message = data && data.message ? data.message : txt;
+    throw new Error("GitHub HTTP " + status + ": " + message);
+  }
+  return data;
+}
+
 function csvToSongs(text) {
   let rows = parseCSV(stripBom(text || ""));
   if (rows.length === 0) return [];
@@ -487,6 +611,21 @@ function csvToSongs(text) {
     out.push(rowToSongByHeader(headers, row));
   }
   return out;
+}
+
+function songsToScriptableCsv(list) {
+  let header = "歌名,歌手,語言,音圓代號,金嗓代號,弘音代號,YouTube,備註\n";
+  let body = list.map(s => [
+    s.title,
+    s.singer,
+    s.lang,
+    s.yinyuan,
+    s.jinsang,
+    s.hongyin,
+    s.youtube,
+    s.note
+  ].map(csvCell).join(",")).join("\n");
+  return header + body + (body ? "\n" : "");
 }
 
 function rowToSongByHeader(headers, row) {
