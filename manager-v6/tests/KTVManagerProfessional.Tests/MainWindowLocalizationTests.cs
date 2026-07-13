@@ -20,6 +20,10 @@ public sealed class MainWindowLocalizationTests
         Assert.Contains("正在匯入", codeBehind);
         Assert.Contains("匯入完成", codeBehind);
 
+        Assert.Contains("DeleteDuplicates_Click", codeBehind);
+        Assert.Contains("SongsFolderImportFilter.IsImportSourceFile", codeBehind);
+        Assert.Contains("刪除重複失敗", codeBehind);
+
         Assert.DoesNotContain("Import files", xaml);
         Assert.DoesNotContain("Song No", xaml);
         Assert.DoesNotContain("Importing {files.Count} file(s)", codeBehind);

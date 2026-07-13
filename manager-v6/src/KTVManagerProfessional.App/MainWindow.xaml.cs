@@ -82,13 +82,21 @@ public partial class MainWindow : Window
             return;
         }
 
-        var deleted = new SongRepository(DatabasePath).DeleteDuplicateSongs();
-        RefreshSongs();
-        SyncMasterCsv();
-        StatusText.Text = deleted == 0
-            ? "沒有找到可刪除的重複歌曲；已重新同步 master.csv。"
-            : $"已刪除 {deleted} 首重複歌曲，並同步 {_songs.Count} 首歌曲到 master.csv 與品牌 CSV";
-        await RefreshGitAsync();
+        try
+        {
+            var deleted = new SongRepository(DatabasePath).DeleteDuplicateSongs();
+            RefreshSongs();
+            SyncMasterCsv();
+            StatusText.Text = deleted == 0
+                ? "沒有找到可刪除的重複歌曲；已重新同步 master.csv。"
+                : $"已刪除 {deleted} 首重複歌曲，並同步 {_songs.Count} 首歌曲到 master.csv 與品牌 CSV";
+            await RefreshGitAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "刪除重複失敗。";
+            MessageBox.Show(this, ex.Message, "刪除重複失敗", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private async void ManualUpsertSong_Click(object sender, RoutedEventArgs e)
@@ -139,13 +147,16 @@ public partial class MainWindow : Window
 
         var files = Directory
             .EnumerateFiles(SongsDirectoryPath)
-            .Where(IsSupportedImportFile)
+            .Where(SongsFolderImportFilter.IsImportSourceFile)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         if (files.Count == 0)
         {
-            MessageBox.Show(this, $"songs 資料夾沒有 PDF、Excel 或 CSV 檔案：{SongsDirectoryPath}", "讀取 songs", MessageBoxButton.OK, MessageBoxImage.Information);
+            RefreshSongs();
+            _importResults.Clear();
+            _issues.Clear();
+            StatusText.Text = "songs 資料夾沒有可匯入來源檔；已略過 master.csv、品牌 CSV 與 iPhone 同步暫存檔。";
             return;
         }
 
