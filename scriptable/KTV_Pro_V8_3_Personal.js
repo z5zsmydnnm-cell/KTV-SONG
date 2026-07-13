@@ -4,8 +4,9 @@
 const APP = "KTV Pro V8.3 Personal";
 const OWNER = "z5zsmydnnm-cell";
 const REPO = "KTV-SONG";
-const BRANCH = "main";
-const BASE = "https://raw.githubusercontent.com/" + OWNER + "/" + REPO + "/" + BRANCH;
+const BRANCH = "agent/build-001-manager-v6";
+const RAW_REF = "refs/heads/" + BRANCH;
+const BASE = "https://raw.githubusercontent.com/" + OWNER + "/" + REPO + "/" + RAW_REF;
 const CSV_URL = BASE + "/songs/master.csv";
 const IPHONE_CSV_REPO_PATH = "songs/iphone-local-songs.csv";
 const IPHONE_CSV_URL = BASE + "/" + IPHONE_CSV_REPO_PATH;
