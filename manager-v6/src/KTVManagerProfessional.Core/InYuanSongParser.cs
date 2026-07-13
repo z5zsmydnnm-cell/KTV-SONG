@@ -92,6 +92,11 @@ public static partial class InYuanSongParser
             .OrderBy(song => song.SongNumber, StringComparer.Ordinal)
             .ToList();
 
+        if (dedupedSongs.Count == 0 && issues.Count == 0)
+        {
+            issues.Add(new ParseIssue(0, sourceName, "No song rows matched the InYuan PDF parser. The PDF may be scanned/image-only, have no text layer, or use an unsupported layout."));
+        }
+
         return new ParseResult(dedupedSongs, issues);
     }
 

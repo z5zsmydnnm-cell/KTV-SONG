@@ -52,7 +52,13 @@ public sealed partial class GoldenVoicePdfSongParser : ISongParser
             songs.Add(new SongRecord(songNumber, title, artist, currentLanguage, BrandCode.GoldenVoice, volume));
         }
 
-        return new ParseResult(songs.OrderBy(song => song.SongNumber, StringComparer.Ordinal).ToList(), issues);
+        var orderedSongs = songs.OrderBy(song => song.SongNumber, StringComparer.Ordinal).ToList();
+        if (orderedSongs.Count == 0 && issues.Count == 0)
+        {
+            issues.Add(new ParseIssue(0, sourceName, "No song rows matched the GoldenVoice PDF parser. The PDF may be scanned/image-only, have no text layer, or use an unsupported layout."));
+        }
+
+        return new ParseResult(orderedSongs, issues);
     }
 
     private static string Normalize(string line)

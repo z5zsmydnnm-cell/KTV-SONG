@@ -25,4 +25,21 @@ public sealed class GoldenVoicePdfSongParserTests
             song.Title == "月亮代表我的心" &&
             song.Artist == "鄧麗君");
     }
+
+    [Fact]
+    public void Parse_reports_when_no_song_rows_match()
+    {
+        var text = """
+        1102
+        header text only
+        no five digit song rows here
+        """;
+
+        var result = new GoldenVoicePdfSongParser().Parse(text, "1102.pdf");
+
+        Assert.Empty(result.Songs);
+        var issue = Assert.Single(result.Issues);
+        Assert.Equal(0, issue.LineNumber);
+        Assert.Contains("No song rows matched", issue.Reason);
+    }
 }

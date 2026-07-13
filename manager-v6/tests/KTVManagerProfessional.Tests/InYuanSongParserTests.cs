@@ -111,4 +111,21 @@ public sealed class InYuanSongParserTests
         Assert.Contains(new SongRecord("201799", "快醒雪", string.Empty, "台語", "音圓", "1326"), result.Songs);
         Assert.Contains(new SongRecord("202528", "美麗與哀愁", string.Empty, "台語", "音圓", "1326"), result.Songs);
     }
+
+    [Fact]
+    public void ParseText_reports_when_no_song_rows_match()
+    {
+        var text = """
+        1102
+        header text only
+        no five digit song rows here
+        """;
+
+        var result = InYuanSongParser.ParseText(text, "1102.pdf");
+
+        Assert.Empty(result.Songs);
+        var issue = Assert.Single(result.Issues);
+        Assert.Equal(0, issue.LineNumber);
+        Assert.Contains("No song rows matched", issue.Reason);
+    }
 }
