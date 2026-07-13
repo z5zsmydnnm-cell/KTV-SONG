@@ -23,6 +23,9 @@ const csvPath = fm.joinPath(dataDir, "master.csv");
 const localCsvPath = fm.joinPath(dataDir, "local_songs.csv");
 const githubLocalCsvPath = fm.joinPath(dataDir, "github_local_songs.csv");
 const favPath = fm.joinPath(dataDir, "favorites.json");
+const favYinyuanPath = fm.joinPath(dataDir, "favorites-yinyuan.json");
+const favJinsangPath = fm.joinPath(dataDir, "favorites-jinsang.json");
+const favYoutubePath = fm.joinPath(dataDir, "favorites-youtube.json");
 const queuePath = fm.joinPath(dataDir, "queue.json");
 const recentPath = fm.joinPath(dataDir, "recent.json");
 const statsPath = fm.joinPath(dataDir, "stats.json");
@@ -34,6 +37,9 @@ migrateLegacyData();
 let songs = [];
 let localSongs = [];
 let favorites = loadJson(favPath, []);
+let favoritesYinyuan = loadJson(favYinyuanPath, []);
+let favoritesJinsang = loadJson(favJinsangPath, []);
+let favoritesYoutube = loadJson(favYoutubePath, []);
 let queue = loadJson(queuePath, []);
 let recent = loadJson(recentPath, []);
 let stats = loadJson(statsPath, {});
@@ -905,6 +911,9 @@ function migrateLegacyData() {
       "local_songs.csv",
       "github_local_songs.csv",
       "favorites.json",
+      "favorites-yinyuan.json",
+      "favorites-jinsang.json",
+      "favorites-youtube.json",
       "queue.json",
       "recent.json",
       "stats.json",
@@ -951,5 +960,269 @@ function escapeHtml(v) {
     .replace(/"/g, "&quot;");
 }
 
+async function mainMenuV2() {
+  while (true) {
+    let youtubeSongs = songs.filter(hasYoutube);
+    let a = new Alert();
+    a.title = APP;
+    a.message =
+      "主歌庫：" + songs.length + " 首\n" +
+      "YouTube 連結：" + youtubeSongs.length + " 首\n" +
+      "待唱清單：" + queue.length + " 首\n" +
+      "全部最愛：" + favorites.length + " 首\n" +
+      "音圓最愛：" + favoritesYinyuan.length + " 首\n" +
+      "金嗓最愛：" + favoritesJinsang.length + " 首\n" +
+      "YouTube最愛：" + favoritesYoutube.length + " 首";
+
+    a.addAction("更新 GitHub 歌庫");
+    a.addAction("同步 iPhone 到 GitHub");
+    a.addAction("從 iPhone 選 CSV 匯入");
+    a.addAction("匯入本機 CSV 歌庫");
+    a.addAction("手動新增歌曲");
+    a.addAction("搜尋歌曲");
+    a.addAction("YouTube最愛");
+    a.addAction("全部最愛");
+    a.addAction("音圓最愛");
+    a.addAction("金嗓最愛");
+    a.addAction("待唱清單");
+    a.addAction("最近播放");
+    a.addAction("統計 TOP20");
+    a.addAction("Apple TV 顯示");
+    a.addAction("設定");
+    a.addAction("版本資訊");
+    a.addCancelAction("離開");
+
+    let r = await a.presentSheet();
+    if (r < 0) return;
+
+    if (r === 0) await updateLibrary();
+    if (r === 1) await syncLocalToGitHub();
+    if (r === 2) await importCSVFromFiles();
+    if (r === 3) await importLocalCSV();
+    if (r === 4) await manualAddSong();
+    if (r === 5) await searchFlowV2();
+    if (r === 6) await listSongsV2(favoritesYoutube, "YouTube最愛");
+    if (r === 7) await listSongsV2(favorites, "全部最愛");
+    if (r === 8) await listSongsV2(favoritesYinyuan, "音圓最愛");
+    if (r === 9) await listSongsV2(favoritesJinsang, "金嗓最愛");
+    if (r === 10) await queueMenu();
+    if (r === 11) await listSongsV2(recent, "最近播放");
+    if (r === 12) await showStats();
+    if (r === 13) await showAppleTV();
+    if (r === 14) await settingMenu();
+    if (r === 15) await versionInfo();
+  }
+}
+
+async function searchFlowV2() {
+  while (true) {
+    let q = await prompt("搜尋歌曲", "輸入歌名、歌手、歌號或備註", "");
+    if (q === null || q.trim() === "") return;
+
+    let key = q.trim().toLowerCase();
+    let found = songs.filter(s => [
+      s.title, s.singer, s.lang, s.yinyuan, s.jinsang, s.hongyin, s.youtube, s.note
+    ].join(" ").toLowerCase().includes(key)).slice(0, 120);
+
+    if (found.length === 0) {
+      await msg("沒有找到", q);
+      continue;
+    }
+
+    await searchCategoryMenuV2(found, q);
+  }
+}
+
+async function searchCategoryMenuV2(found, keyword) {
+  let yinyuan = found.filter(hasYinyuanCode);
+  let jinsang = found.filter(hasJinsangCode);
+  let youtube = found;
+
+  let a = new Alert();
+  a.title = "搜尋結果分類";
+  a.message =
+    "關鍵字：" + keyword + "\n" +
+    "全部：" + found.length + " 首\n" +
+    "音圓：" + yinyuan.length + " 首\n" +
+    "金嗓：" + jinsang.length + " 首\n" +
+    "YouTube搜尋：" + youtube.length + " 首";
+  a.addAction("全部結果");
+  a.addAction("音圓");
+  a.addAction("金嗓");
+  a.addAction("YouTube搜尋");
+  a.addCancelAction("返回");
+
+  let r = await a.presentSheet();
+  if (r < 0) return;
+  if (r === 0) await listSongsV2(found, "全部搜尋 " + found.length + " 首");
+  if (r === 1) await listSongsV2(yinyuan, "音圓搜尋 " + yinyuan.length + " 首");
+  if (r === 2) await listSongsV2(jinsang, "金嗓搜尋 " + jinsang.length + " 首");
+  if (r === 3) await listSongsV2(youtube, "YouTube搜尋 " + youtube.length + " 首");
+}
+
+async function listSongsV2(list, title) {
+  if (!list || list.length === 0) {
+    await msg(title, "沒有資料");
+    return;
+  }
+
+  while (true) {
+    let a = new Alert();
+    a.title = title;
+
+    let showList = list.slice(0, 40);
+    for (let s of showList) {
+      a.addAction((s.title || "未命名") + " / " + (s.singer || "") + " / " + firstCode(s));
+    }
+
+    a.addCancelAction("返回");
+    let i = await a.presentSheet();
+    if (i < 0) return;
+
+    await songDetailV2(showList[i]);
+  }
+}
+
+async function songDetailV2(s) {
+  while (true) {
+    let a = new Alert();
+    a.title = s.title || "歌曲";
+    a.message =
+      "歌手：" + (s.singer || "") +
+      "\n語言：" + (s.lang || "") +
+      "\n音圓：" + (s.yinyuan || "") +
+      "\n金嗓：" + (s.jinsang || "") +
+      "\n弘音：" + (s.hongyin || "") +
+      "\nYouTube：" + (s.youtube || "") +
+      "\n備註：" + (s.note || "");
+
+    a.addAction("加入待唱");
+    a.addAction(isTypedFavorite(s, "yinyuan") ? "移除音圓最愛" : "加入音圓最愛");
+    a.addAction(isTypedFavorite(s, "jinsang") ? "移除金嗓最愛" : "加入金嗓最愛");
+    a.addAction(isTypedFavorite(s, "youtube") ? "移除YouTube最愛" : "加入YouTube最愛");
+    a.addAction(isFav(s) ? "移除全部最愛" : "加入全部最愛");
+    a.addAction("開啟 YouTube");
+    a.addAction("編輯歌曲資料");
+    a.addDestructiveAction("刪除歌曲");
+    a.addAction("複製歌號");
+    a.addCancelAction("返回");
+
+    let r = await a.presentSheet();
+    if (r < 0) return;
+
+    if (r === 0) {
+      queue.unshift(s);
+      queue = dedupeSongs(queue);
+      saveJson(queuePath, queue);
+      recordPlay(s);
+      recent.unshift(s);
+      recent = dedupeSongs(recent).slice(0, 100);
+      saveJson(recentPath, recent);
+      await msg("已加入待唱", s.title || "");
+    }
+    if (r === 1) await toggleTypedFavoriteWithMessage(s, "yinyuan");
+    if (r === 2) await toggleTypedFavoriteWithMessage(s, "jinsang");
+    if (r === 3) await toggleTypedFavoriteWithMessage(s, "youtube");
+    if (r === 4) {
+      toggleFavorite(s);
+      await msg(isFav(s) ? "已加入全部最愛" : "已移除全部最愛", s.title || "");
+    }
+    if (r === 5) await openYoutubeOrSearch(s);
+    if (r === 6) await editSong(s);
+    if (r === 7) {
+      await deleteSong(s);
+      return;
+    }
+    if (r === 8) {
+      Pasteboard.copyString(firstCode(s));
+      await msg("已複製", firstCode(s));
+    }
+  }
+}
+
+async function toggleTypedFavoriteWithMessage(s, type) {
+  let label = favoriteTypeLabel(type);
+  let requiredValue = favoriteTypeValue(s, type);
+  if ((type === "yinyuan" || type === "jinsang") && !requiredValue) {
+    await msg("無法加入" + label, "這首歌沒有" + label.replace("最愛", "") + "歌號");
+    return;
+  }
+
+  let added = toggleTypedFavorite(s, type);
+  await msg(added ? "已加入" + label : "已移除" + label, s.title || "");
+}
+
+function toggleTypedFavorite(s, type) {
+  let list = favoriteTypeList(type);
+  let key = typedFavoriteKey(s, type);
+  let exists = list.some(x => typedFavoriteKey(x, type) === key);
+  if (exists) list = list.filter(x => typedFavoriteKey(x, type) !== key);
+  else list.unshift(s);
+  list = dedupeSongs(list);
+  saveFavoriteTypeList(type, list);
+  return !exists;
+}
+
+function isTypedFavorite(s, type) {
+  let key = typedFavoriteKey(s, type);
+  return favoriteTypeList(type).some(x => typedFavoriteKey(x, type) === key);
+}
+
+function typedFavoriteKey(s, type) {
+  let value = favoriteTypeValue(s, type);
+  if (value) return type + ":" + value;
+  return type + ":" + songKey(s);
+}
+
+function favoriteTypeValue(s, type) {
+  if (type === "yinyuan") return clean(s.yinyuan || "");
+  if (type === "jinsang") return clean(s.jinsang || "");
+  if (type === "youtube") return clean(s.youtube || "");
+  return "";
+}
+
+function favoriteTypeList(type) {
+  if (type === "yinyuan") return favoritesYinyuan;
+  if (type === "jinsang") return favoritesJinsang;
+  if (type === "youtube") return favoritesYoutube;
+  return favorites;
+}
+
+function saveFavoriteTypeList(type, list) {
+  if (type === "yinyuan") {
+    favoritesYinyuan = list;
+    saveJson(favYinyuanPath, favoritesYinyuan);
+    return;
+  }
+  if (type === "jinsang") {
+    favoritesJinsang = list;
+    saveJson(favJinsangPath, favoritesJinsang);
+    return;
+  }
+  if (type === "youtube") {
+    favoritesYoutube = list;
+    saveJson(favYoutubePath, favoritesYoutube);
+  }
+}
+
+function favoriteTypeLabel(type) {
+  if (type === "yinyuan") return "音圓最愛";
+  if (type === "jinsang") return "金嗓最愛";
+  if (type === "youtube") return "YouTube最愛";
+  return "全部最愛";
+}
+
+function hasYinyuanCode(s) {
+  return !!clean(s.yinyuan || "");
+}
+
+function hasJinsangCode(s) {
+  return !!clean(s.jinsang || "");
+}
+
+function hasYoutube(s) {
+  return !!clean(s.youtube || "");
+}
+
 await loadSongs();
-await mainMenu();
+await mainMenuV2();
