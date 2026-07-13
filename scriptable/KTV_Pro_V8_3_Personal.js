@@ -293,27 +293,24 @@ async function syncLocalToGitHub() {
     if (!token) return;
 
     let csv = songsToScriptableCsv(dedupeSongs(localSongs));
-    let apiUrl = "https://api.github.com/repos/" + OWNER + "/" + REPO + "/contents/" + IPHONE_CSV_REPO_PATH;
-    let sha = "";
+    let masterTxt = await fetchTextNoCache(CSV_URL, true);
+    let masterCsv = songsToMasterCsv(csvToSongs(masterTxt || "").concat(localSongs));
 
-    try {
-      let existing = await githubJson("GET", apiUrl + "?ref=" + encodeURIComponent(BRANCH), token, null);
-      sha = existing && existing.sha ? existing.sha : "";
-    } catch (e) {
-      // 404 means the file does not exist yet. Other errors will be caught by PUT if permissions are wrong.
-    }
+    await putGitHubTextFile(
+      IPHONE_CSV_REPO_PATH,
+      csv,
+      "data: sync iphone local songs " + new Date().toISOString(),
+      token);
+    await putGitHubTextFile(
+      "songs/master.csv",
+      masterCsv,
+      "data: sync master csv from iphone " + new Date().toISOString(),
+      token);
 
-    let body = {
-      message: "data: sync iphone local songs " + new Date().toISOString(),
-      content: Data.fromString(csv).toBase64String(),
-      branch: BRANCH
-    };
-    if (sha) body.sha = sha;
-
-    await githubJson("PUT", apiUrl, token, body);
     fm.writeString(githubLocalCsvPath, csv);
+    fm.writeString(csvPath, masterCsv);
     await loadSongs();
-    await msg("同步完成", "已同步 " + localSongs.length + " 首到 GitHub：\n" + IPHONE_CSV_REPO_PATH);
+    await msg("同步完成", "已同步 " + localSongs.length + " 首到 GitHub：\n" + IPHONE_CSV_REPO_PATH + "\n/songs/master.csv");
   } catch (e) {
     await msg("同步失敗", String(e) + "\n\n請確認 GitHub Token 有 Contents Read/Write 權限。");
   }
@@ -611,6 +608,27 @@ async function githubJson(method, url, token, body) {
   return data;
 }
 
+async function putGitHubTextFile(path, text, message, token) {
+  let apiUrl = "https://api.github.com/repos/" + OWNER + "/" + REPO + "/contents/" + path;
+  let sha = "";
+
+  try {
+    let existing = await githubJson("GET", apiUrl + "?ref=" + encodeURIComponent(BRANCH), token, null);
+    sha = existing && existing.sha ? existing.sha : "";
+  } catch (e) {
+    // 404 means the file does not exist yet. Other errors will be caught by PUT if permissions are wrong.
+  }
+
+  let body = {
+    message: message,
+    content: Data.fromString(text).toBase64String(),
+    branch: BRANCH
+  };
+  if (sha) body.sha = sha;
+
+  return await githubJson("PUT", apiUrl, token, body);
+}
+
 function csvToSongs(text) {
   let rows = parseCSV(stripBom(text || ""));
   if (rows.length === 0) return [];
@@ -638,6 +656,68 @@ function songsToScriptableCsv(list) {
     s.note
   ].map(csvCell).join(",")).join("\n");
   return header + body + (body ? "\n" : "");
+}
+
+function songsToMasterCsv(list) {
+  let merged = mergeSongsForMaster(list);
+  let header = "歌名,歌手,語言,音圓代號,金嗓代號,弘音代號,集數,備註\n";
+  let body = merged.map(s => [
+    s.title,
+    s.singer,
+    s.lang,
+    s.yinyuan,
+    s.jinsang,
+    s.hongyin,
+    s.volume || "",
+    s.note || ""
+  ].map(csvCell).join(",")).join("\n");
+  return "\uFEFF" + header + body + (body ? "\n" : "");
+}
+
+function mergeSongsForMaster(list) {
+  let bySong = {};
+  for (let s of list) {
+    if (!s || (!s.title && !s.singer && !firstCode(s))) continue;
+    let key = [clean(s.title).toLowerCase(), clean(s.singer).toLowerCase(), clean(s.lang).toLowerCase()].join("|");
+    if (!bySong[key]) {
+      bySong[key] = {
+        title: clean(s.title),
+        singer: clean(s.singer),
+        lang: clean(s.lang),
+        yinyuan: "",
+        jinsang: "",
+        hongyin: "",
+        volume: "",
+        note: clean(s.note)
+      };
+    }
+
+    bySong[key].yinyuan = chooseCode(bySong[key].yinyuan, s.yinyuan);
+    bySong[key].jinsang = chooseCode(bySong[key].jinsang, s.jinsang);
+    bySong[key].hongyin = chooseCode(bySong[key].hongyin, s.hongyin);
+    bySong[key].volume = mergeListText(bySong[key].volume, s.volume);
+    bySong[key].note = mergeNote(bySong[key].note, s.note);
+  }
+
+  return Object.keys(bySong)
+    .map(k => bySong[k])
+    .sort((a, b) => (firstCode(a) || a.title).localeCompare(firstCode(b) || b.title));
+}
+
+function chooseCode(current, incoming) {
+  current = clean(current);
+  incoming = clean(incoming);
+  if (!current) return incoming;
+  if (!incoming) return current;
+  return incoming.localeCompare(current) < 0 ? incoming : current;
+}
+
+function mergeListText(a, b) {
+  a = clean(a);
+  b = clean(b);
+  if (!a) return b;
+  if (!b || a.split(";").map(x => clean(x)).includes(b)) return a;
+  return a + "; " + b;
 }
 
 function rowToSongByHeader(headers, row) {
@@ -668,8 +748,6 @@ function rowToSongByHeader(headers, row) {
     yinyuan = songNo;
   }
 
-  if (volume) note = mergeNote(note, "集數 " + volume);
-
   return {
     title: title,
     singer: singer,
@@ -678,7 +756,8 @@ function rowToSongByHeader(headers, row) {
     jinsang: jinsang,
     hongyin: hongyin,
     youtube: youtube,
-    note: note
+    note: note,
+    volume: volume
   };
 }
 
