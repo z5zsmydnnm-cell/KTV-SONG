@@ -64,8 +64,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        SyncMasterCsv();
-        StatusText.Text = $"已同步 {_songs.Count} 首歌曲到 master.csv、音圓.csv、金嗓.csv、弘音.csv";
+        if (TrySyncMasterCsvWithWarning("同步 master.csv"))
+        {
+            StatusText.Text = $"已同步 {_songs.Count} 首歌曲到 master.csv、音圓.csv、金嗓.csv、弘音.csv";
+        }
         await RefreshGitAsync();
     }
 
@@ -86,10 +88,14 @@ public partial class MainWindow : Window
         {
             var deleted = new SongRepository(DatabasePath).DeleteDuplicateSongs();
             RefreshSongs();
-            SyncMasterCsv();
-            StatusText.Text = deleted == 0
-                ? "沒有找到可刪除的重複歌曲；已重新同步 master.csv。"
-                : $"已刪除 {deleted} 首重複歌曲，並同步 {_songs.Count} 首歌曲到 master.csv 與品牌 CSV";
+            var synced = TrySyncMasterCsvWithWarning("刪除重複後同步 CSV");
+            StatusText.Text = synced
+                ? deleted == 0
+                    ? "沒有找到可刪除的重複歌曲；已重新同步 master.csv。"
+                    : $"已刪除 {deleted} 首重複歌曲，並同步 {_songs.Count} 首歌曲到 master.csv 與品牌 CSV"
+                : deleted == 0
+                    ? "沒有找到可刪除的重複歌曲；但 CSV 被其他程式使用，尚未重新同步。"
+                    : $"已刪除 {deleted} 首重複歌曲；但 CSV 被其他程式使用，尚未重新同步。";
             await RefreshGitAsync();
         }
         catch (Exception ex)
@@ -124,10 +130,14 @@ public partial class MainWindow : Window
 
         var result = new SongRepository(DatabasePath).UpsertSong(song, "manual", DateTimeOffset.Now);
         RefreshSongs();
-        SyncMasterCsv();
+        var manualSyncSucceeded = TrySyncMasterCsvWithWarning("手動新增/更新後同步 CSV");
         StatusText.Text = result.Status == SongWriteStatus.New
-            ? $"已手動新增 {song.SongNumber} {song.Title}，並同步到 master.csv 與品牌 CSV"
-            : $"已手動更新 {song.SongNumber} {song.Title}，並同步到 master.csv 與品牌 CSV";
+            ? manualSyncSucceeded
+                ? $"已手動新增 {song.SongNumber} {song.Title}，並同步到 master.csv 與品牌 CSV"
+                : $"已手動新增 {song.SongNumber} {song.Title}；但 CSV 被其他程式使用，尚未同步。"
+            : manualSyncSucceeded
+                ? $"已手動更新 {song.SongNumber} {song.Title}，並同步到 master.csv 與品牌 CSV"
+                : $"已手動更新 {song.SongNumber} {song.Title}；但 CSV 被其他程式使用，尚未同步。";
 
         ManualSongNumberText.Clear();
         ManualTitleText.Clear();
@@ -226,13 +236,16 @@ public partial class MainWindow : Window
 
             RefreshSongs();
             var changedRows = summary.ImportedRows + summary.UpdatedRows;
+            var synced = false;
             if (changedRows > 0)
             {
-                SyncMasterCsv();
+                synced = TrySyncMasterCsvWithWarning("匯入後同步 CSV");
             }
 
             StatusText.Text = changedRows > 0
-                ? $"匯入完成並已同步 CSV：新增 {summary.ImportedRows}、更新 {summary.UpdatedRows}、重複 {summary.DuplicateRows}、失敗 {summary.FailedRows}，成功率 {summary.SuccessRate:0.0}%。"
+                ? synced
+                    ? $"匯入完成並已同步 CSV：新增 {summary.ImportedRows}、更新 {summary.UpdatedRows}、重複 {summary.DuplicateRows}、失敗 {summary.FailedRows}，成功率 {summary.SuccessRate:0.0}%。"
+                    : $"匯入完成，但 CSV 被其他程式使用尚未同步：新增 {summary.ImportedRows}、更新 {summary.UpdatedRows}、重複 {summary.DuplicateRows}、失敗 {summary.FailedRows}，成功率 {summary.SuccessRate:0.0}%。"
                 : $"匯入完成：新增 {summary.ImportedRows}、更新 {summary.UpdatedRows}、重複 {summary.DuplicateRows}、失敗 {summary.FailedRows}，成功率 {summary.SuccessRate:0.0}%。";
             await RefreshGitAsync();
         }
@@ -257,6 +270,26 @@ public partial class MainWindow : Window
         Directory.CreateDirectory(SongsDirectoryPath);
         CsvExporter.ExportMasterCsv(MasterCsvPath, _songs);
         CsvExporter.ExportBrandCsvs(SongsDirectoryPath, _songs);
+    }
+
+    private bool TrySyncMasterCsvWithWarning(string actionName)
+    {
+        try
+        {
+            SyncMasterCsv();
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            var message =
+                $"{actionName}失敗：CSV 檔案正在被其他程式使用。\n\n" +
+                "請先關閉 Excel、記事本、GitHub Desktop 預覽，或任何正在開啟 master.csv / 音圓.csv / 金嗓.csv 的程式，" +
+                "再按「同步 master.csv」。\n\n" +
+                ex.Message;
+            StatusText.Text = "CSV 同步失敗：檔案正在被其他程式使用。";
+            MessageBox.Show(this, message, "CSV 同步失敗", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
     }
 
     private async void RefreshGit_Click(object sender, RoutedEventArgs e)

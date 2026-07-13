@@ -23,6 +23,9 @@ public sealed class MainWindowLocalizationTests
         Assert.Contains("DeleteDuplicates_Click", codeBehind);
         Assert.Contains("SongsFolderImportFilter.IsImportSourceFile", codeBehind);
         Assert.Contains("刪除重複失敗", codeBehind);
+        Assert.Contains("TrySyncMasterCsvWithWarning", codeBehind);
+        Assert.Contains("CSV 同步失敗", codeBehind);
+        Assert.Contains("檔案正在被其他程式使用", codeBehind);
 
         Assert.DoesNotContain("Import files", xaml);
         Assert.DoesNotContain("Song No", xaml);
