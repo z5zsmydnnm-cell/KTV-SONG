@@ -47,4 +47,26 @@ public sealed class SongRepositoryTests
         Assert.Equal(BrandCode.InYuan, song.BrandCode);
         Assert.Equal("3001", song.Volume);
     }
+
+    [Fact]
+    public void DeleteDuplicateSongs_removes_duplicate_title_artist_language_brand_and_keeps_lowest_song_number()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"ktv-duplicates-{Guid.NewGuid():N}.sqlite");
+        KtvDatabase.Initialize(path);
+        var repository = new SongRepository(path);
+        var importedAt = new DateTimeOffset(2026, 7, 13, 10, 0, 0, TimeSpan.Zero);
+
+        repository.UpsertSong(new SongRecord("602892", "算了吧", "", "華語", BrandCode.InYuan, "3010"), "3010.csv", importedAt);
+        repository.UpsertSong(new SongRecord("200771", "算了吧", "", "華語", BrandCode.InYuan, "1333"), "1333.csv", importedAt);
+        repository.UpsertSong(new SongRecord("700001", "算了吧", "不同歌手", "華語", BrandCode.InYuan, "3011"), "3011.csv", importedAt);
+
+        var deleted = repository.DeleteDuplicateSongs();
+
+        var songs = repository.GetAllSongs();
+        Assert.Equal(1, deleted);
+        Assert.Equal(2, songs.Count);
+        Assert.Contains(songs, song => song.SongNumber == "200771" && song.Title == "算了吧" && song.Artist == "");
+        Assert.Contains(songs, song => song.SongNumber == "700001" && song.Title == "算了吧" && song.Artist == "不同歌手");
+        Assert.DoesNotContain(songs, song => song.SongNumber == "602892");
+    }
 }

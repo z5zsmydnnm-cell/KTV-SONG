@@ -69,6 +69,28 @@ public partial class MainWindow : Window
         await RefreshGitAsync();
     }
 
+    private async void DeleteDuplicates_Click(object sender, RoutedEventArgs e)
+    {
+        var confirm = MessageBox.Show(
+            this,
+            "將刪除同歌名、同歌手、同語言、同品牌的重複歌曲，保留歌號最小的一筆。\n\n要繼續嗎？",
+            "刪除重複歌曲",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var deleted = new SongRepository(DatabasePath).DeleteDuplicateSongs();
+        RefreshSongs();
+        SyncMasterCsv();
+        StatusText.Text = deleted == 0
+            ? "沒有找到可刪除的重複歌曲；已重新同步 master.csv。"
+            : $"已刪除 {deleted} 首重複歌曲，並同步 {_songs.Count} 首歌曲到 {MasterCsvPath}";
+        await RefreshGitAsync();
+    }
+
     private async void ManualUpsertSong_Click(object sender, RoutedEventArgs e)
     {
         var songNumber = ManualSongNumberText.Text.Trim();

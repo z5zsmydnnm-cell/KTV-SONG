@@ -4,7 +4,7 @@ namespace KTVManagerProfessional.Core;
 
 public static class CsvExporter
 {
-    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+    private static readonly UTF8Encoding Utf8WithBom = new(encoderShouldEmitUTF8Identifier: true);
 
     public static void ExportMasterCsv(string path, IEnumerable<SongRecord> songs)
     {
@@ -25,7 +25,7 @@ public static class CsvExporter
                 .Append(Escape(song.Volume)).AppendLine();
         }
 
-        File.WriteAllText(path, builder.ToString(), Utf8NoBom);
+        File.WriteAllText(path, builder.ToString(), Utf8WithBom);
     }
 
     private static string Escape(string value)

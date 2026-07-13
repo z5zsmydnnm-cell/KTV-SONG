@@ -92,6 +92,82 @@ public sealed class SongRepository
         return songs;
     }
 
+    public int DeleteDuplicateSongs()
+    {
+        using var connection = KtvDatabase.OpenConnection(_databasePath);
+        using var transaction = connection.BeginTransaction();
+        var duplicateIds = FindDuplicateSongIds(connection, transaction);
+        if (duplicateIds.Count == 0)
+        {
+            return 0;
+        }
+
+        DeleteBySongIds(connection, transaction, "SongArtists", "SongId", duplicateIds);
+        DeleteBySongIds(connection, transaction, "Favorites", "SongId", duplicateIds);
+        DeleteBySongIds(connection, transaction, "Songs", "Id", duplicateIds);
+        transaction.Commit();
+        return duplicateIds.Count;
+    }
+
+    private static List<long> FindDuplicateSongIds(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT s.Id
+            FROM Songs s
+            LEFT JOIN Artists a ON a.Id = s.PrimaryArtistId
+            WHERE s.Id NOT IN (
+                SELECT keep.Id
+                FROM Songs keep
+                LEFT JOIN Artists keepArtist ON keepArtist.Id = keep.PrimaryArtistId
+                WHERE keep.Id = (
+                    SELECT candidate.Id
+                    FROM Songs candidate
+                    LEFT JOIN Artists candidateArtist ON candidateArtist.Id = candidate.PrimaryArtistId
+                    WHERE candidate.BrandId = keep.BrandId
+                      AND candidate.NormalizedTitle = keep.NormalizedTitle
+                      AND candidate.Language = keep.Language
+                      AND COALESCE(candidateArtist.NormalizedName, '') = COALESCE(keepArtist.NormalizedName, '')
+                    ORDER BY CAST(candidate.SongNumber AS INTEGER), candidate.SongNumber, candidate.Id
+                    LIMIT 1
+                )
+            )
+            AND EXISTS (
+                SELECT 1
+                FROM Songs other
+                LEFT JOIN Artists otherArtist ON otherArtist.Id = other.PrimaryArtistId
+                WHERE other.Id <> s.Id
+                  AND other.BrandId = s.BrandId
+                  AND other.NormalizedTitle = s.NormalizedTitle
+                  AND other.Language = s.Language
+                  AND COALESCE(otherArtist.NormalizedName, '') = COALESCE(a.NormalizedName, '')
+            )
+            """;
+
+        using var reader = command.ExecuteReader();
+        var ids = new List<long>();
+        while (reader.Read())
+        {
+            ids.Add(reader.GetInt64(0));
+        }
+
+        return ids;
+    }
+
+    private static void DeleteBySongIds(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string table,
+        string idColumn,
+        IReadOnlyList<long> songIds)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"DELETE FROM {table} WHERE {idColumn} IN ({string.Join(",", songIds)})";
+        command.ExecuteNonQuery();
+    }
+
     private static long EnsureBrand(SqliteConnection connection, SqliteTransaction transaction, string code, DateTimeOffset now)
     {
         return EnsureLookup(connection, transaction, "Brands", "Code", code, ("DisplayName", code), now);
