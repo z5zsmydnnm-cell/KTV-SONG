@@ -11,11 +11,13 @@ const IPHONE_CSV_REPO_PATH = "songs/iphone-local-songs.csv";
 const IPHONE_CSV_URL = BASE + "/" + IPHONE_CSV_REPO_PATH;
 const VERSION_URL = BASE + "/version.json";
 
-const fm = FileManager.iCloud();
-const localFM = FileManager.local();
+const iCloudFM = FileManager.iCloud();
+const fm = FileManager.local();
+const localFM = fm;
 const dir = fm.documentsDirectory();
 const dataDir = fm.joinPath(dir, "KTV_PRO_V8");
 if (!fm.fileExists(dataDir)) fm.createDirectory(dataDir);
+const legacyDataDir = iCloudFM.joinPath(iCloudFM.documentsDirectory(), "KTV_PRO_V8");
 
 const csvPath = fm.joinPath(dataDir, "master.csv");
 const localCsvPath = fm.joinPath(dataDir, "local_songs.csv");
@@ -26,6 +28,8 @@ const recentPath = fm.joinPath(dataDir, "recent.json");
 const statsPath = fm.joinPath(dataDir, "stats.json");
 const settingPath = fm.joinPath(dataDir, "settings.json");
 const deletedPath = fm.joinPath(dataDir, "deleted.json");
+
+migrateLegacyData();
 
 let songs = [];
 let localSongs = [];
@@ -116,9 +120,15 @@ async function manualAddSong() {
   let s = await inputSong({});
   if (!s) return;
   localSongs.unshift(s);
-  saveLocalSongs();
+  try {
+    saveLocalSongs();
+  } catch (e) {
+    await msg("新增失敗", "無法寫入本機歌單：\n" + String(e));
+    return;
+  }
+
   await loadSongs();
-  await msg("新增完成", s.title + "\n已儲存到本機 local_songs.csv");
+  await msg("新增完成", s.title + "\n已儲存到 iPhone 本機 KTV_PRO_V8/local_songs.csv\n本機新增：" + localSongs.length + " 首");
 }
 
 async function editSong(s) {
@@ -240,6 +250,10 @@ function saveLocalSongs() {
     s.title, s.singer, s.lang, s.yinyuan, s.jinsang, s.hongyin, s.youtube, s.note
   ].map(csvCell).join(",")).join("\n");
   fm.writeString(localCsvPath, header + body + (body ? "\n" : ""));
+  let saved = csvToSongs(fm.readString(localCsvPath));
+  if (saved.length !== localSongs.length) {
+    throw new Error("local_songs.csv 寫入驗證失敗，預期 " + localSongs.length + " 首，實際 " + saved.length + " 首。");
+  }
 }
 
 async function updateLibrary() {
@@ -802,6 +816,32 @@ function loadJson(path, fallback) {
 
 function saveJson(path, value) {
   fm.writeString(path, JSON.stringify(value, null, 2));
+}
+
+function migrateLegacyData() {
+  try {
+    if (!iCloudFM.fileExists(legacyDataDir)) return;
+    let names = [
+      "master.csv",
+      "local_songs.csv",
+      "github_local_songs.csv",
+      "favorites.json",
+      "queue.json",
+      "recent.json",
+      "stats.json",
+      "settings.json",
+      "deleted.json"
+    ];
+
+    for (let name of names) {
+      let src = iCloudFM.joinPath(legacyDataDir, name);
+      let dst = fm.joinPath(dataDir, name);
+      if (!iCloudFM.fileExists(src) || fm.fileExists(dst)) continue;
+      fm.writeString(dst, iCloudFM.readString(src));
+    }
+  } catch (e) {
+    // Migration is best-effort. New writes use the iPhone local folder.
+  }
 }
 
 async function prompt(title, message, value) {
