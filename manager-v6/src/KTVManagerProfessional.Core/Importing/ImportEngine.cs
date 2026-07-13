@@ -1,10 +1,23 @@
 using KTVManagerProfessional.Core.Data;
+using KTVManagerProfessional.Core.Ocr;
 using KTVManagerProfessional.Core.Parsing;
 
 namespace KTVManagerProfessional.Core.Importing;
 
 public sealed class ImportEngine
 {
+    private readonly IPdfOcrPageExtractor pdfOcrPageExtractor;
+
+    public ImportEngine()
+        : this(new WindowsPdfOcrPageExtractor())
+    {
+    }
+
+    public ImportEngine(IPdfOcrPageExtractor pdfOcrPageExtractor)
+    {
+        this.pdfOcrPageExtractor = pdfOcrPageExtractor;
+    }
+
     public async Task<ImportSummary> ImportFilesAsync(IReadOnlyList<string> paths, string databasePath, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(paths);
@@ -22,14 +35,14 @@ public sealed class ImportEngine
         return ImportSummary.FromResults(results);
     }
 
-    private static Task<ImportFileResult> ImportFileAsync(string path, string databasePath, CancellationToken cancellationToken)
+    private async Task<ImportFileResult> ImportFileAsync(string path, string databasePath, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         var route = ImportRouter.Route(path);
         if (route.IsUnsupported)
         {
-            return Task.FromResult(new ImportFileResult(
+            return new ImportFileResult(
                 SourcePath: path,
                 SourceFileName: Path.GetFileName(path),
                 SourceType: route.SourceType,
@@ -40,10 +53,10 @@ public sealed class ImportEngine
                 UpdatedRows: 0,
                 DuplicateRows: 0,
                 FailedRows: 0,
-                Issues: [new ParseIssue(0, Path.GetFileName(path), route.Reason)]));
+                Issues: [new ParseIssue(0, Path.GetFileName(path), route.Reason)]);
         }
 
-        var parseResult = Parse(path, route);
+        var parseResult = await ParseAsync(path, route, cancellationToken);
         var repository = new SongRepository(databasePath);
         var imported = 0;
         var updated = 0;
@@ -69,7 +82,7 @@ public sealed class ImportEngine
         }
 
         var volume = parseResult.Songs.FirstOrDefault()?.Volume ?? string.Empty;
-        return Task.FromResult(new ImportFileResult(
+        return new ImportFileResult(
             SourcePath: path,
             SourceFileName: Path.GetFileName(path),
             SourceType: route.SourceType,
@@ -80,21 +93,21 @@ public sealed class ImportEngine
             UpdatedRows: updated,
             DuplicateRows: duplicate,
             FailedRows: parseResult.Issues.Count,
-            Issues: parseResult.Issues));
+            Issues: parseResult.Issues);
     }
 
-    private static ParseResult Parse(string path, ImportRoute route)
+    private Task<ParseResult> ParseAsync(string path, ImportRoute route, CancellationToken cancellationToken)
     {
         return route.SourceType switch
         {
-            ImportSourceType.Csv => new CsvSongParser().ParseFile(path, route.BrandCode),
-            ImportSourceType.Excel => new ExcelSongParser().ParseFile(path, route.BrandCode),
-            ImportSourceType.Pdf => ParsePdf(path, route.BrandCode),
-            _ => new ParseResult([], [new ParseIssue(0, Path.GetFileName(path), "Unsupported source type.")])
+            ImportSourceType.Csv => Task.FromResult(new CsvSongParser().ParseFile(path, route.BrandCode)),
+            ImportSourceType.Excel => Task.FromResult(new ExcelSongParser().ParseFile(path, route.BrandCode)),
+            ImportSourceType.Pdf => ParsePdfAsync(path, route.BrandCode, cancellationToken),
+            _ => Task.FromResult(new ParseResult([], [new ParseIssue(0, Path.GetFileName(path), "Unsupported source type.")]))
         };
     }
 
-    private static ParseResult ParsePdf(string path, string brandCode)
+    private async Task<ParseResult> ParsePdfAsync(string path, string brandCode, CancellationToken cancellationToken)
     {
         var text = PdfTextExtractor.ExtractText(path);
         ISongParser parser = brandCode switch
@@ -102,6 +115,24 @@ public sealed class ImportEngine
             BrandCode.GoldenVoice => new GoldenVoicePdfSongParser(),
             _ => new InYuanPdfSongParser()
         };
-        return parser.Parse(text, Path.GetFileName(path));
+        var result = parser.Parse(text, Path.GetFileName(path));
+        if (brandCode != BrandCode.GoldenVoice || result.Songs.Count > 0 || !string.IsNullOrWhiteSpace(text))
+        {
+            return result;
+        }
+
+        if (!pdfOcrPageExtractor.IsAvailable)
+        {
+            return result with
+            {
+                Issues = result.Issues
+                    .Concat([new ParseIssue(0, Path.GetFileName(path), pdfOcrPageExtractor.AvailabilityMessage)])
+                    .ToList()
+            };
+        }
+
+        var pages = await pdfOcrPageExtractor.ExtractPagesAsync(path, cancellationToken);
+        var ocrResult = new GoldenVoiceOcrSongParser().ParsePages(pages, Path.GetFileName(path));
+        return ocrResult.Songs.Count > 0 ? ocrResult : result;
     }
 }
