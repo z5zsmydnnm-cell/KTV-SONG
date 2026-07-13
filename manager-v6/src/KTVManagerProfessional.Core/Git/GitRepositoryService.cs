@@ -65,9 +65,50 @@ public sealed class GitRepositoryService
     public async Task<GitCommandResult> PushAsync(CancellationToken cancellationToken)
     {
         var started = DateTimeOffset.Now;
+        var fetch = await _runner.RunAsync(_repositoryPath, ["fetch", "origin"], TimeSpan.FromSeconds(60), cancellationToken);
+        if (!fetch.Succeeded)
+        {
+            AddHistory("Push", null, [], started, fetch);
+            return fetch;
+        }
+
+        var branch = await _runner.RunAsync(_repositoryPath, ["branch", "--show-current"], TimeSpan.FromSeconds(10), cancellationToken);
+        if (!branch.Succeeded || string.IsNullOrWhiteSpace(branch.StdOut))
+        {
+            var failed = CombineGitResults(fetch, branch);
+            AddHistory("Push", null, [], started, failed);
+            return failed;
+        }
+
+        var branchName = branch.StdOut.Trim();
+        var rebase = await _runner.RunAsync(
+            _repositoryPath,
+            ["rebase", "--autostash", $"origin/{branchName}"],
+            TimeSpan.FromSeconds(60),
+            cancellationToken);
+        if (!rebase.Succeeded)
+        {
+            var failed = CombineGitResults(fetch, branch, rebase);
+            AddHistory("Push", null, [], started, failed);
+            return failed;
+        }
+
         var push = await _runner.RunAsync(_repositoryPath, ["push"], TimeSpan.FromSeconds(60), cancellationToken);
-        AddHistory("Push", null, [], started, push);
-        return push;
+        var result = CombineGitResults(fetch, rebase, push);
+        AddHistory("Push", null, [], started, result);
+        return result;
+    }
+
+    private static GitCommandResult CombineGitResults(params GitCommandResult[] results)
+    {
+        var exitCode = results.LastOrDefault(result => !result.Succeeded)?.ExitCode ?? 0;
+        var stdout = string.Join(
+            Environment.NewLine,
+            results.Select(result => result.StdOut).Where(text => !string.IsNullOrWhiteSpace(text)));
+        var stderr = string.Join(
+            Environment.NewLine,
+            results.Select(result => result.StdErr).Where(text => !string.IsNullOrWhiteSpace(text)));
+        return new GitCommandResult(exitCode, stdout, stderr);
     }
 
     private void AddHistory(string action, string? message, IReadOnlyList<string> files, DateTimeOffset started, GitCommandResult result)

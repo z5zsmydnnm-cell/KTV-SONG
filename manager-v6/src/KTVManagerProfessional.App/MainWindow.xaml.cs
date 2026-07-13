@@ -56,7 +56,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ExportCsv_Click(object sender, RoutedEventArgs e)
+    private async void ExportCsv_Click(object sender, RoutedEventArgs e)
     {
         if (_songs.Count == 0)
         {
@@ -66,9 +66,10 @@ public partial class MainWindow : Window
 
         SyncMasterCsv();
         StatusText.Text = $"已同步 {_songs.Count} 首歌曲到 {MasterCsvPath}";
+        await RefreshGitAsync();
     }
 
-    private void ManualUpsertSong_Click(object sender, RoutedEventArgs e)
+    private async void ManualUpsertSong_Click(object sender, RoutedEventArgs e)
     {
         var songNumber = ManualSongNumberText.Text.Trim();
         var title = ManualTitleText.Text.Trim();
@@ -103,6 +104,7 @@ public partial class MainWindow : Window
         ManualArtistText.Clear();
         ManualVolumeText.Clear();
         ManualSongNumberText.Focus();
+        await RefreshGitAsync();
     }
 
     private async void ReadSongsFolder_Click(object sender, RoutedEventArgs e)
