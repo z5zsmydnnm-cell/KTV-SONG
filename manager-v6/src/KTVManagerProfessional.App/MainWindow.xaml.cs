@@ -65,7 +65,7 @@ public partial class MainWindow : Window
         }
 
         SyncMasterCsv();
-        StatusText.Text = $"已同步 {_songs.Count} 首歌曲到 {MasterCsvPath}";
+        StatusText.Text = $"已同步 {_songs.Count} 首歌曲到 master.csv、音圓.csv、金嗓.csv、弘音.csv";
         await RefreshGitAsync();
     }
 
@@ -87,7 +87,7 @@ public partial class MainWindow : Window
         SyncMasterCsv();
         StatusText.Text = deleted == 0
             ? "沒有找到可刪除的重複歌曲；已重新同步 master.csv。"
-            : $"已刪除 {deleted} 首重複歌曲，並同步 {_songs.Count} 首歌曲到 {MasterCsvPath}";
+            : $"已刪除 {deleted} 首重複歌曲，並同步 {_songs.Count} 首歌曲到 master.csv 與品牌 CSV";
         await RefreshGitAsync();
     }
 
@@ -118,8 +118,8 @@ public partial class MainWindow : Window
         RefreshSongs();
         SyncMasterCsv();
         StatusText.Text = result.Status == SongWriteStatus.New
-            ? $"已手動新增 {song.SongNumber} {song.Title}，並同步到 {MasterCsvPath}"
-            : $"已手動更新 {song.SongNumber} {song.Title}，並同步到 {MasterCsvPath}";
+            ? $"已手動新增 {song.SongNumber} {song.Title}，並同步到 master.csv 與品牌 CSV"
+            : $"已手動更新 {song.SongNumber} {song.Title}，並同步到 master.csv 與品牌 CSV";
 
         ManualSongNumberText.Clear();
         ManualTitleText.Clear();
@@ -236,6 +236,7 @@ public partial class MainWindow : Window
     {
         Directory.CreateDirectory(SongsDirectoryPath);
         CsvExporter.ExportMasterCsv(MasterCsvPath, _songs);
+        CsvExporter.ExportBrandCsvs(SongsDirectoryPath, _songs);
     }
 
     private async void RefreshGit_Click(object sender, RoutedEventArgs e)
