@@ -208,4 +208,28 @@ public sealed class InYuanSongParserTests
         Assert.Contains(new SongRecord("6366", "夢中網", "王建傑.詹曼鈴", "台語", "音圓", "1012"), result.Songs);
         Assert.Contains(new SongRecord("6351", "無心花", "慕鈺華", "台語", "音圓", "1012"), result.Songs);
     }
+
+    [Fact]
+    public void ParseText_keeps_five_digit_old_catalog_numbers_with_their_titles()
+    {
+        var text = """
+        ●
+        羅美玲 勃露斯
+        不痛多好 國
+        50150
+        ●
+        四面楚歌 國 周杰倫 梭
+        50072
+        ●
+        用情太深 國 邰正宵 勃露斯
+        5905
+        MIDI 專輯(第 1140集)
+        """;
+
+        var result = InYuanSongParser.ParseText(text, "1140.pdf");
+
+        Assert.Empty(result.Issues);
+        Assert.Contains(new SongRecord("50072", "四面楚歌", "周杰倫", "國語", "音圓", "1140"), result.Songs);
+        Assert.DoesNotContain(result.Songs, song => song.SongNumber == "50150" && song.Title.Contains("四面楚歌", StringComparison.Ordinal));
+    }
 }

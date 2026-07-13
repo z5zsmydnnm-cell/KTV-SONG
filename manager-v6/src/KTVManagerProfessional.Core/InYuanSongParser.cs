@@ -23,6 +23,9 @@ public static partial class InYuanSongParser
         "Slow Soul",
         "Cha Cha",
         "Tango",
+        "勃露斯",
+        "吉魯巴",
+        "梭",
         "Samba",
         "Soul",
         "Waltz",
@@ -593,13 +596,13 @@ public static partial class InYuanSongParser
     [GeneratedRegex(@"(?<!\d)(?<number>\d{5,6})(?!\d)", RegexOptions.Compiled)]
     private static partial Regex SongStartRegex();
 
-    [GeneratedRegex(@"^(?:[\u25cf\u25cb\u2605\u25c6\u25c7*]\s*)?(?<number>\d{4})\s+(?<rest>.+)$", RegexOptions.Compiled)]
+    [GeneratedRegex(@"^(?:[\u25cf\u25cb\u2605\u25c6\u25c7*]\s*)?(?<number>\d{4,6})\s+(?<rest>.+)$", RegexOptions.Compiled)]
     private static partial Regex OldCatalogLineRegex();
 
     [GeneratedRegex(@"^(?<title>.+?)\s+(?<language>台|國|国|華|华|客)\s+(?<artist>.+)$", RegexOptions.Compiled)]
     private static partial Regex OldCatalogPartsRegex();
 
-    [GeneratedRegex(@"(?<!\d)(?<number>\d{4})(?!\d)", RegexOptions.Compiled)]
+    [GeneratedRegex(@"(?<!\d)(?<number>\d{4,6})(?!\d)", RegexOptions.Compiled)]
     private static partial Regex OldCatalogNumberTokenRegex();
 
     [GeneratedRegex(@"^(?<title>.+?)\s+(?<language>\u53f0\u8a9e|\u570b\u8a9e|\u83ef\u8a9e|\u5ba2\u8a9e|\u53f0|\u570b|\u56fd|\u83ef|\u534e|\u5ba2)(?:\s+(?<artist>.*))?$", RegexOptions.Compiled)]
