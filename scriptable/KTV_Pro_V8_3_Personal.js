@@ -1,0 +1,696 @@
+// KTV Pro V8.3 Personal - Scriptable
+// 修正版：支援 GitHub main 下載、raw 快取避開、舊 CSV 格式、WPF 新 CSV 格式、手動新增/修改/刪除、最愛、點唱佇列、YouTube。
+
+const APP = "KTV Pro V8.3 Personal";
+const OWNER = "z5zsmydnnm-cell";
+const REPO = "KTV-SONG";
+const BRANCH = "main";
+const BASE = "https://raw.githubusercontent.com/" + OWNER + "/" + REPO + "/" + BRANCH;
+const CSV_URL = BASE + "/songs/master.csv";
+const VERSION_URL = BASE + "/version.json";
+
+const fm = FileManager.iCloud();
+const localFM = FileManager.local();
+const dir = fm.documentsDirectory();
+const dataDir = fm.joinPath(dir, "KTV_PRO_V8");
+if (!fm.fileExists(dataDir)) fm.createDirectory(dataDir);
+
+const csvPath = fm.joinPath(dataDir, "master.csv");
+const localCsvPath = fm.joinPath(dataDir, "local_songs.csv");
+const favPath = fm.joinPath(dataDir, "favorites.json");
+const queuePath = fm.joinPath(dataDir, "queue.json");
+const recentPath = fm.joinPath(dataDir, "recent.json");
+const statsPath = fm.joinPath(dataDir, "stats.json");
+const settingPath = fm.joinPath(dataDir, "settings.json");
+const deletedPath = fm.joinPath(dataDir, "deleted.json");
+
+let songs = [];
+let localSongs = [];
+let favorites = loadJson(favPath, []);
+let queue = loadJson(queuePath, []);
+let recent = loadJson(recentPath, []);
+let stats = loadJson(statsPath, {});
+let settings = loadJson(settingPath, { autoFavorite: true });
+let deletedKeys = loadJson(deletedPath, []);
+
+await loadSongs();
+await mainMenu();
+
+async function mainMenu() {
+  while (true) {
+    let youtubeSongs = songs.filter(s => s.youtube && String(s.youtube).trim() !== "");
+    let a = new Alert();
+    a.title = APP;
+    a.message =
+      "歌庫：" + songs.length + " 首\n" +
+      "YouTube 連結：" + youtubeSongs.length + " 首\n" +
+      "點唱佇列：" + queue.length + " 首\n" +
+      "我的最愛：" + favorites.length + " 首";
+
+    a.addAction("更新 GitHub 歌庫");
+    a.addAction("從 iPhone 檔案匯入 CSV");
+    a.addAction("匯入本機 CSV 歌單");
+    a.addAction("手動新增歌曲");
+    a.addAction("搜尋歌曲");
+    a.addAction("YouTube 最愛");
+    a.addAction("我的最愛");
+    a.addAction("點唱佇列");
+    a.addAction("最近點唱");
+    a.addAction("統計 TOP20");
+    a.addAction("Apple TV 顯示");
+    a.addAction("設定");
+    a.addAction("版本資訊");
+    a.addCancelAction("結束");
+
+    let r = await a.presentSheet();
+    if (r < 0) return;
+
+    if (r === 0) await updateLibrary();
+    if (r === 1) await importCSVFromFiles();
+    if (r === 2) await importLocalCSV();
+    if (r === 3) await manualAddSong();
+    if (r === 4) await searchFlow();
+    if (r === 5) await youtubeFavoriteMenu();
+    if (r === 6) await listSongs(favorites, "我的最愛");
+    if (r === 7) await queueMenu();
+    if (r === 8) await listSongs(recent, "最近點唱");
+    if (r === 9) await showStats();
+    if (r === 10) await showAppleTV();
+    if (r === 11) await settingMenu();
+    if (r === 12) await versionInfo();
+  }
+}
+
+async function importCSVFromFiles() {
+  try {
+    let paths = await DocumentPicker.open(["public.comma-separated-values-text", "public.text", "public.data"]);
+    if (!paths || paths.length === 0) return;
+
+    let p = paths[0];
+    let txt = "";
+    try {
+      txt = localFM.readString(p);
+    } catch (e) {
+      txt = fm.readString(p);
+    }
+
+    let rows = csvToSongs(txt).filter(s => s.title || s.singer || s.yinyuan || s.jinsang || s.hongyin || s.youtube);
+    if (rows.length === 0) {
+      await msg("匯入失敗", "CSV 沒有讀到歌曲資料");
+      return;
+    }
+
+    localSongs = rows.concat(localSongs);
+    saveLocalSongs();
+    await loadSongs();
+    await msg("匯入完成", "已從 iPhone 檔案匯入 " + rows.length + " 首\n目前歌庫：" + songs.length + " 首");
+  } catch (e) {
+    await msg("匯入取消或失敗", String(e));
+  }
+}
+
+async function manualAddSong() {
+  let s = await inputSong({});
+  if (!s) return;
+  localSongs.unshift(s);
+  saveLocalSongs();
+  await loadSongs();
+  await msg("新增完成", s.title + "\n已儲存到本機 local_songs.csv");
+}
+
+async function editSong(s) {
+  let oldKey = songKey(s);
+  let edited = await inputSong(s);
+  if (!edited) return;
+
+  deletedKeys = Array.from(new Set(deletedKeys.concat([oldKey])));
+  saveJson(deletedPath, deletedKeys);
+
+  localSongs = localSongs.filter(x => songKey(x) !== oldKey);
+  localSongs.unshift(edited);
+  saveLocalSongs();
+
+  replaceInList(favorites, oldKey, edited, favPath);
+  replaceInList(queue, oldKey, edited, queuePath);
+  replaceInList(recent, oldKey, edited, recentPath);
+
+  await loadSongs();
+  await msg("修改完成", edited.title);
+}
+
+async function deleteSong(s) {
+  let a = new Alert();
+  a.title = "確認刪除";
+  a.message = (s.title || "") + "\n" + (s.singer || "");
+  a.addDestructiveAction("刪除");
+  a.addCancelAction("取消");
+  let r = await a.presentSheet();
+  if (r < 0) return;
+
+  let k = songKey(s);
+  deletedKeys = Array.from(new Set(deletedKeys.concat([k])));
+  saveJson(deletedPath, deletedKeys);
+
+  localSongs = localSongs.filter(x => songKey(x) !== k);
+  favorites = favorites.filter(x => songKey(x) !== k);
+  queue = queue.filter(x => songKey(x) !== k);
+  recent = recent.filter(x => songKey(x) !== k);
+
+  saveLocalSongs();
+  saveJson(favPath, favorites);
+  saveJson(queuePath, queue);
+  saveJson(recentPath, recent);
+
+  await loadSongs();
+  await msg("已刪除", s.title || "");
+}
+
+async function inputSong(old) {
+  let title = await prompt("歌曲資料", "歌名", old.title || "");
+  if (title === null || title.trim() === "") return null;
+
+  let singer = await prompt("歌曲資料", "歌手，可空白", old.singer || "");
+  if (singer === null) singer = "";
+
+  let lang = await prompt("歌曲資料", "語言，可空白", old.lang || "");
+  if (lang === null) lang = "";
+
+  let yinyuan = await prompt("歌曲資料", "音圓歌號，可空白", old.yinyuan || "");
+  if (yinyuan === null) yinyuan = "";
+
+  let jinsang = await prompt("歌曲資料", "金嗓歌號，可空白", old.jinsang || "");
+  if (jinsang === null) jinsang = "";
+
+  let hongyin = await prompt("歌曲資料", "弘音歌號，可空白", old.hongyin || "");
+  if (hongyin === null) hongyin = "";
+
+  let youtube = await prompt("歌曲資料", "YouTube 連結，可空白", old.youtube || "");
+  if (youtube === null) youtube = "";
+
+  let note = await prompt("歌曲資料", "備註，可空白", old.note || "");
+  if (note === null) note = "";
+
+  return {
+    title: title.trim(),
+    singer: singer.trim(),
+    lang: lang.trim(),
+    yinyuan: yinyuan.trim(),
+    jinsang: jinsang.trim(),
+    hongyin: hongyin.trim(),
+    youtube: youtube.trim(),
+    note: note.trim()
+  };
+}
+
+async function loadSongs() {
+  songs = [];
+  localSongs = [];
+
+  if (fm.fileExists(csvPath)) {
+    try {
+      songs = songs.concat(csvToSongs(fm.readString(csvPath)));
+    } catch (e) {}
+  }
+
+  if (fm.fileExists(localCsvPath)) {
+    try {
+      localSongs = csvToSongs(fm.readString(localCsvPath));
+      songs = songs.concat(localSongs);
+    } catch (e) {}
+  }
+
+  songs = songs
+    .filter(s => s.title || s.singer || s.yinyuan || s.jinsang || s.hongyin || s.youtube)
+    .filter(s => !deletedKeys.includes(songKey(s)))
+    .filter((s, i, arr) => arr.findIndex(x => songKey(x) === songKey(s)) === i);
+}
+
+function saveLocalSongs() {
+  let header = "歌名,歌手,語言,音圓,金嗓,弘音,YouTube,備註\n";
+  let body = localSongs.map(s => [
+    s.title, s.singer, s.lang, s.yinyuan, s.jinsang, s.hongyin, s.youtube, s.note
+  ].map(csvCell).join(",")).join("\n");
+  fm.writeString(localCsvPath, header + body + (body ? "\n" : ""));
+}
+
+async function updateLibrary() {
+  try {
+    let url = CSV_URL + "?t=" + Date.now();
+    let req = new Request(url);
+    req.headers = {
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache"
+    };
+
+    let txt = await req.loadString();
+    let status = req.response ? req.response.statusCode : 200;
+    if (status >= 400) throw new Error("HTTP " + status + " " + CSV_URL);
+
+    let rows = csvToSongs(txt);
+    if (rows.length === 0) throw new Error("GitHub CSV 已下載，但解析後是 0 首。請確認 songs/master.csv 欄位。");
+
+    fm.writeString(csvPath, txt);
+    await loadSongs();
+    await msg("更新完成", "GitHub 讀取成功\n本次解析：" + rows.length + " 首\n目前共：" + songs.length + " 首\n分支：" + BRANCH);
+  } catch (e) {
+    await msg("更新失敗", String(e) + "\n\nURL:\n" + CSV_URL);
+  }
+}
+
+async function importLocalCSV() {
+  if (!fm.fileExists(localCsvPath)) {
+    fm.writeString(localCsvPath, "歌名,歌手,語言,音圓,金嗓,弘音,YouTube,備註\n");
+    await msg("已建立本機歌單檔", "KTV_PRO_V8/local_songs.csv");
+    return;
+  }
+  await loadSongs();
+  await msg("匯入完成", "目前共 " + songs.length + " 首");
+}
+
+async function searchFlow() {
+  while (true) {
+    let q = await prompt("搜尋歌曲", "輸入歌名、歌手、歌號或備註", "");
+    if (q === null || q.trim() === "") return;
+
+    let key = q.trim().toLowerCase();
+    let found = songs.filter(s => [
+      s.title, s.singer, s.lang, s.yinyuan, s.jinsang, s.hongyin, s.youtube, s.note
+    ].join(" ").toLowerCase().includes(key)).slice(0, 80);
+
+    if (found.length === 0) {
+      await msg("沒有找到", q);
+      continue;
+    }
+    await listSongs(found, "搜尋結果 " + found.length + " 首");
+  }
+}
+
+async function youtubeFavoriteMenu() {
+  let list = songs.filter(s => s.youtube && String(s.youtube).trim() !== "");
+  if (list.length === 0) {
+    await msg("YouTube 最愛", "目前沒有 YouTube 連結歌曲");
+    return;
+  }
+
+  while (true) {
+    let a = new Alert();
+    a.title = "YouTube 最愛";
+    a.message = "共 " + list.length + " 首";
+
+    let showList = list.slice(0, 40);
+    for (let s of showList) a.addAction((s.title || "未命名") + " / " + (s.singer || ""));
+
+    a.addCancelAction("返回");
+    let r = await a.presentSheet();
+    if (r < 0) return;
+
+    await openYoutubeOrSearch(showList[r]);
+  }
+}
+
+async function openYoutubeOrSearch(s) {
+  if (s.youtube && String(s.youtube).trim() !== "") {
+    Safari.open(String(s.youtube).trim());
+  } else {
+    Safari.open("https://www.youtube.com/results?search_query=" +
+      encodeURIComponent((s.title || "") + " " + (s.singer || "") + " KTV"));
+  }
+}
+
+async function listSongs(list, title) {
+  if (!list || list.length === 0) {
+    await msg(title, "沒有資料");
+    return;
+  }
+
+  while (true) {
+    let a = new Alert();
+    a.title = title;
+
+    let showList = list.slice(0, 30);
+    for (let s of showList) {
+      a.addAction((s.title || "未命名") + " / " + (s.singer || "") + " / " + firstCode(s));
+    }
+
+    a.addCancelAction("返回");
+    let i = await a.presentSheet();
+    if (i < 0) return;
+
+    await songDetail(showList[i]);
+  }
+}
+
+async function songDetail(s) {
+  while (true) {
+    let a = new Alert();
+    a.title = s.title || "歌曲";
+    a.message =
+      "歌手：" + (s.singer || "") +
+      "\n語言：" + (s.lang || "") +
+      "\n音圓：" + (s.yinyuan || "") +
+      "\n金嗓：" + (s.jinsang || "") +
+      "\n弘音：" + (s.hongyin || "") +
+      "\nYouTube：" + (s.youtube || "") +
+      "\n備註：" + (s.note || "");
+
+    a.addAction("加入點唱");
+    a.addAction(isFav(s) ? "取消最愛" : "加入最愛");
+    a.addAction("直接開 YouTube");
+    a.addAction("修改歌曲資料");
+    a.addDestructiveAction("刪除歌曲");
+    a.addAction("複製歌號");
+    a.addCancelAction("返回");
+
+    let r = await a.presentSheet();
+    if (r < 0) return;
+
+    if (r === 0) {
+      queue.unshift(s);
+      queue = dedupeSongs(queue);
+      saveJson(queuePath, queue);
+      recordPlay(s);
+      recent.unshift(s);
+      recent = dedupeSongs(recent).slice(0, 100);
+      saveJson(recentPath, recent);
+      await msg("已加入點唱", s.title || "");
+    }
+
+    if (r === 1) {
+      toggleFavorite(s);
+      await msg(isFav(s) ? "已加入最愛" : "已取消最愛", s.title || "");
+    }
+
+    if (r === 2) await openYoutubeOrSearch(s);
+    if (r === 3) await editSong(s);
+    if (r === 4) {
+      await deleteSong(s);
+      return;
+    }
+    if (r === 5) {
+      Pasteboard.copyString(firstCode(s));
+      await msg("已複製", firstCode(s));
+    }
+  }
+}
+
+async function queueMenu() {
+  while (true) {
+    let a = new Alert();
+    a.title = "點唱佇列";
+    a.message = "共 " + queue.length + " 首";
+    a.addAction("查看佇列");
+    a.addAction("清空佇列");
+    a.addCancelAction("返回");
+    let r = await a.presentSheet();
+    if (r < 0) return;
+    if (r === 0) await listSongs(queue, "點唱佇列");
+    if (r === 1) {
+      queue = [];
+      saveJson(queuePath, queue);
+      await msg("已清空", "點唱佇列");
+    }
+  }
+}
+
+async function showStats() {
+  let entries = Object.keys(stats)
+    .map(k => ({ key: k, count: stats[k] }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 20);
+
+  if (entries.length === 0) {
+    await msg("統計 TOP20", "目前沒有點唱紀錄");
+    return;
+  }
+
+  let text = entries.map((x, i) => (i + 1) + ". " + x.key + " - " + x.count + " 次").join("\n");
+  await msg("統計 TOP20", text);
+}
+
+async function showAppleTV() {
+  let html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>" +
+    "<style>body{font-family:-apple-system;background:#101820;color:white;padding:28px}h1{font-size:42px}li{font-size:30px;margin:16px 0}</style></head><body>" +
+    "<h1>KTV 點唱佇列</h1><ol>" +
+    queue.slice(0, 20).map(s => "<li>" + escapeHtml(s.title || "") + " / " + escapeHtml(s.singer || "") + "</li>").join("") +
+    "</ol></body></html>";
+  let w = new WebView();
+  await w.loadHTML(html);
+  await w.present(true);
+}
+
+async function settingMenu() {
+  let a = new Alert();
+  a.title = "設定";
+  a.message =
+    "GitHub CSV:\n" + CSV_URL +
+    "\n\n本機資料夾:\nKTV_PRO_V8" +
+    "\n\n目前歌庫：" + songs.length + " 首";
+  a.addAction("刪除 GitHub 快取 master.csv");
+  a.addAction("重設刪除紀錄");
+  a.addCancelAction("返回");
+  let r = await a.presentSheet();
+  if (r < 0) return;
+
+  if (r === 0) {
+    if (fm.fileExists(csvPath)) fm.remove(csvPath);
+    await loadSongs();
+    await msg("已刪除快取", "請重新更新 GitHub 歌庫");
+  }
+  if (r === 1) {
+    deletedKeys = [];
+    saveJson(deletedPath, deletedKeys);
+    await loadSongs();
+    await msg("已重設", "刪除紀錄已清空");
+  }
+}
+
+async function versionInfo() {
+  let info = "";
+  try {
+    let req = new Request(VERSION_URL + "?t=" + Date.now());
+    info = await req.loadString();
+  } catch (e) {
+    info = "無法讀取 version.json\n" + String(e);
+  }
+  await msg("版本資訊", APP + "\n分支：" + BRANCH + "\n\n" + info);
+}
+
+function csvToSongs(text) {
+  let rows = parseCSV(stripBom(text || ""));
+  if (rows.length === 0) return [];
+
+  let headers = rows[0].map(h => normalizeHeader(h));
+  let out = [];
+  for (let i = 1; i < rows.length; i++) {
+    let row = rows[i];
+    if (!row || row.every(c => String(c || "").trim() === "")) continue;
+    out.push(rowToSongByHeader(headers, row));
+  }
+  return out;
+}
+
+function rowToSongByHeader(headers, row) {
+  function get(names) {
+    for (let n of names) {
+      let key = normalizeHeader(n);
+      let idx = headers.indexOf(key);
+      if (idx >= 0) return clean(row[idx]);
+    }
+    return "";
+  }
+
+  let title = get(["歌名", "歌曲名稱", "曲名", "Title", "Song"]);
+  let singer = get(["歌手", "演唱者", "Artist", "Singer"]);
+  let lang = get(["語言", "Language"]);
+  let songNo = get(["歌號", "歌曲編號", "編號", "SongNumber", "Song No"]);
+  let yinyuan = get(["音圓代號", "音圓", "InYuan", "Yinyuan"]);
+  let jinsang = get(["金嗓代號", "金嗓", "GoldenVoice", "Jinsang"]);
+  let hongyin = get(["弘音代號", "弘音", "Hongyin"]);
+  let youtube = get(["YouTube", "Youtube", "YT"]);
+  let note = get(["備註", "Note", "Memo"]);
+  let volume = get(["集數", "Volume"]);
+
+  // WPF 新格式：歌號,歌名,歌手,語言,音圓代號,集數
+  // 這裡的「歌號」就是 KTV 歌號，放到 Scriptable 的音圓欄位，才搜尋得到。
+  if (songNo && (!yinyuan || yinyuan === "音圓" || yinyuan === "Unknown")) {
+    if (yinyuan && yinyuan !== "音圓" && yinyuan !== "Unknown") note = mergeNote(note, yinyuan);
+    yinyuan = songNo;
+  }
+
+  if (volume) note = mergeNote(note, "集數 " + volume);
+
+  return {
+    title: title,
+    singer: singer,
+    lang: lang,
+    yinyuan: yinyuan,
+    jinsang: jinsang,
+    hongyin: hongyin,
+    youtube: youtube,
+    note: note
+  };
+}
+
+function parseCSV(text) {
+  text = stripBom(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  let rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i++) {
+    let ch = text[i];
+    if (quoted) {
+      if (ch === "\"") {
+        if (text[i + 1] === "\"") {
+          cell += "\"";
+          i++;
+        } else {
+          quoted = false;
+        }
+      } else {
+        cell += ch;
+      }
+    } else {
+      if (ch === "\"") quoted = true;
+      else if (ch === ",") {
+        row.push(cell);
+        cell = "";
+      } else if (ch === "\n") {
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = "";
+      } else {
+        cell += ch;
+      }
+    }
+  }
+
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function csvCell(v) {
+  v = String(v == null ? "" : v);
+  if (v.includes("\"") || v.includes(",") || v.includes("\n") || v.includes("\r")) {
+    return "\"" + v.replace(/"/g, "\"\"") + "\"";
+  }
+  return v;
+}
+
+function normalizeHeader(v) {
+  return clean(v).replace(/\s+/g, "").toLowerCase();
+}
+
+function clean(v) {
+  return String(v == null ? "" : v).replace(/^\uFEFF/, "").trim();
+}
+
+function stripBom(v) {
+  return String(v || "").replace(/^\uFEFF/, "");
+}
+
+function mergeNote(a, b) {
+  a = clean(a);
+  b = clean(b);
+  if (!a) return b;
+  if (!b) return a;
+  if (a.indexOf(b) >= 0) return a;
+  return a + "；" + b;
+}
+
+function firstCode(s) {
+  return s.yinyuan || s.jinsang || s.hongyin || "";
+}
+
+function songKey(s) {
+  return [
+    s.title || "",
+    s.singer || "",
+    s.yinyuan || "",
+    s.jinsang || "",
+    s.hongyin || ""
+  ].join("|").toLowerCase();
+}
+
+function dedupeSongs(list) {
+  let seen = {};
+  let out = [];
+  for (let s of list) {
+    let k = songKey(s);
+    if (!seen[k]) {
+      seen[k] = true;
+      out.push(s);
+    }
+  }
+  return out;
+}
+
+function isFav(s) {
+  let k = songKey(s);
+  return favorites.some(x => songKey(x) === k);
+}
+
+function toggleFavorite(s) {
+  let k = songKey(s);
+  if (isFav(s)) favorites = favorites.filter(x => songKey(x) !== k);
+  else favorites.unshift(s);
+  favorites = dedupeSongs(favorites);
+  saveJson(favPath, favorites);
+}
+
+function recordPlay(s) {
+  let k = (s.title || "未命名") + " / " + (s.singer || "");
+  stats[k] = (stats[k] || 0) + 1;
+  saveJson(statsPath, stats);
+}
+
+function replaceInList(list, oldKey, newSong, path) {
+  let replaced = list.map(x => songKey(x) === oldKey ? newSong : x);
+  saveJson(path, dedupeSongs(replaced));
+}
+
+function loadJson(path, fallback) {
+  try {
+    if (!fm.fileExists(path)) return fallback;
+    return JSON.parse(fm.readString(path));
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function saveJson(path, value) {
+  fm.writeString(path, JSON.stringify(value, null, 2));
+}
+
+async function prompt(title, message, value) {
+  let a = new Alert();
+  a.title = title;
+  a.message = message;
+  a.addTextField(message, value || "");
+  a.addAction("確定");
+  a.addCancelAction("取消");
+  let r = await a.presentAlert();
+  if (r < 0) return null;
+  return a.textFieldValue(0);
+}
+
+async function msg(title, message) {
+  let a = new Alert();
+  a.title = title;
+  a.message = message;
+  a.addAction("確定");
+  await a.presentAlert();
+}
+
+function escapeHtml(v) {
+  return String(v == null ? "" : v)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
