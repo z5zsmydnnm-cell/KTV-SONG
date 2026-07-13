@@ -1,7 +1,7 @@
 // KTV Pro V8.3 Personal - tiny Scriptable loader
 // Paste only this file into Scriptable. It downloads the full script from GitHub.
 
-const SCRIPT_URL = "https://raw.githubusercontent.com/z5zsmydnnm-cell/KTV-SONG/refs/heads/agent/build-001-manager-v6/scriptable/KTV_Pro_V8_3_Personal.js";
+const SCRIPT_URL = "https://raw.githubusercontent.com/z5zsmydnnm-cell/KTV-SONG/agent/build-001-manager-v6/scriptable/KTV_Pro_V8_3_Personal.js";
 
 try {
   const req = new Request(SCRIPT_URL + "?t=" + Date.now());
