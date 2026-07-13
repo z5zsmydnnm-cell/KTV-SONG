@@ -37,8 +37,6 @@ let stats = loadJson(statsPath, {});
 let settings = loadJson(settingPath, { autoFavorite: true });
 let deletedKeys = loadJson(deletedPath, []);
 
-await loadSongs();
-await mainMenu();
 
 async function mainMenu() {
   while (true) {
@@ -834,3 +832,6 @@ function escapeHtml(v) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+await loadSongs();
+await mainMenu();
