@@ -9,6 +9,7 @@ namespace KTVManagerProfessional.Core.Ocr;
 public sealed class WindowsPdfOcrPageExtractor : IPdfOcrPageExtractor
 {
     private const double RenderScale = 2.5;
+    private const double FallbackRenderScale = 2.2;
 
     public bool IsAvailable => OperatingSystem.IsWindows() && CreatePrimaryEngine() is not null;
 
@@ -31,37 +32,47 @@ public sealed class WindowsPdfOcrPageExtractor : IPdfOcrPageExtractor
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var page = document.GetPage(index);
-            using var stream = new InMemoryRandomAccessStream();
-            var renderOptions = CreateRenderOptions(page);
-            await page.RenderToStreamAsync(stream, renderOptions);
-            stream.Seek(0);
+            var primary = await RecognizePageAsync(page, engine, RenderScale);
+            var fallback = await RecognizePageAsync(page, engine, FallbackRenderScale);
+            var words = MergeWords(primary.Words, ScaleWords(
+                fallback.Words,
+                primary.Width / (double)fallback.Width,
+                primary.Height / (double)fallback.Height));
 
-            var decoder = await BitmapDecoder.CreateAsync(stream);
-            var bitmap = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
-            var result = await engine.RecognizeAsync(bitmap);
-            var words = ToWords(result).ToList();
             if (japaneseEngine is not null && ShouldRunJapaneseOcr(words))
             {
-                var japaneseResult = await japaneseEngine.RecognizeAsync(bitmap);
-                words = MergeWords(words, ToWords(japaneseResult));
+                var japanese = await RecognizePageAsync(page, japaneseEngine, RenderScale);
+                words = MergeWords(words, japanese.Words);
             }
 
             pages.Add(new OcrPage(
                 PageNumber: (int)index + 1,
-                Width: bitmap.PixelWidth,
-                Height: bitmap.PixelHeight,
+                Width: primary.Width,
+                Height: primary.Height,
                 Words: words));
         }
 
         return pages;
     }
 
-    private static PdfPageRenderOptions CreateRenderOptions(PdfPage page)
+    private static async Task<OcrRenderResult> RecognizePageAsync(PdfPage page, OcrEngine engine, double scale)
+    {
+        using var stream = new InMemoryRandomAccessStream();
+        await page.RenderToStreamAsync(stream, CreateRenderOptions(page, scale));
+        stream.Seek(0);
+
+        var decoder = await BitmapDecoder.CreateAsync(stream);
+        var bitmap = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+        var result = await engine.RecognizeAsync(bitmap);
+        return new OcrRenderResult(bitmap.PixelWidth, bitmap.PixelHeight, ToWords(result).ToList());
+    }
+
+    private static PdfPageRenderOptions CreateRenderOptions(PdfPage page, double scale)
     {
         return new PdfPageRenderOptions
         {
-            DestinationWidth = Math.Max(1, (uint)Math.Round(page.Size.Width * RenderScale)),
-            DestinationHeight = Math.Max(1, (uint)Math.Round(page.Size.Height * RenderScale))
+            DestinationWidth = Math.Max(1, (uint)Math.Round(page.Size.Width * scale)),
+            DestinationHeight = Math.Max(1, (uint)Math.Round(page.Size.Height * scale))
         };
     }
 
@@ -93,11 +104,21 @@ public sealed class WindowsPdfOcrPageExtractor : IPdfOcrPageExtractor
         return words;
     }
 
+    private static IEnumerable<OcrWord> ScaleWords(IEnumerable<OcrWord> words, double scaleX, double scaleY)
+    {
+        return words.Select(word => new OcrWord(
+            word.Text,
+            word.X * scaleX,
+            word.Y * scaleY,
+            word.Width * scaleX,
+            word.Height * scaleY));
+    }
+
     private static bool IsSameWord(OcrWord left, OcrWord right)
     {
         return string.Equals(left.Text, right.Text, StringComparison.Ordinal) &&
-            Math.Abs(left.CenterX - right.CenterX) <= 12 &&
-            Math.Abs(left.CenterY - right.CenterY) <= 12;
+            Math.Abs(left.CenterX - right.CenterX) <= 32 &&
+            Math.Abs(left.CenterY - right.CenterY) <= 32;
     }
 
     private static bool ShouldRunJapaneseOcr(IReadOnlyList<OcrWord> words)
@@ -140,4 +161,6 @@ public sealed class WindowsPdfOcrPageExtractor : IPdfOcrPageExtractor
 
         return language is null ? null : OcrEngine.TryCreateFromLanguage(language);
     }
+
+    private sealed record OcrRenderResult(int Width, int Height, IReadOnlyList<OcrWord> Words);
 }

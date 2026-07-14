@@ -20,7 +20,7 @@ public sealed partial class GoldenVoiceOcrSongParser
             var language = DetectLanguage(page);
             foreach (var row in FindRows(page))
             {
-                var title = NormalizeTitle(JoinWords(FindTitleWords(page, row)));
+                var title = NormalizeTitle(row.TitlePrefix + JoinWords(FindTitleWords(page, row)));
                 var artist = JoinWords(FindArtistWords(page, row));
 
                 if (string.IsNullOrWhiteSpace(title))
@@ -92,16 +92,20 @@ public sealed partial class GoldenVoiceOcrSongParser
         var rows = new List<OcrRow>();
         foreach (var group in groups)
         {
-            var digits = string.Concat(group
-                .OrderBy(word => word.X)
-                .Select(word => NonDigitRegex().Replace(word.Text, string.Empty)));
+            var orderedGroup = group.OrderBy(word => word.X).ToList();
+            var mergedText = string.Concat(orderedGroup.Select(word => word.Text.Trim()));
+            var mergedSongTitle = MergedSongNumberTitleRegex().Match(mergedText);
+            var digits = mergedSongTitle.Success
+                ? mergedSongTitle.Groups["number"].Value
+                : string.Concat(orderedGroup.Select(word => NonDigitRegex().Replace(word.Text, string.Empty)));
 
             if (!SongNumberRegex().IsMatch(digits))
             {
                 continue;
             }
 
-            rows.Add(new OcrRow(digits, group.Average(word => word.CenterY), isLeftColumn));
+            var titlePrefix = mergedSongTitle.Success ? mergedSongTitle.Groups["title"].Value : string.Empty;
+            rows.Add(new OcrRow(digits, group.Average(word => word.CenterY), isLeftColumn, titlePrefix));
         }
 
         var orderedRows = rows.OrderBy(row => row.Y).ToList();
@@ -127,11 +131,33 @@ public sealed partial class GoldenVoiceOcrSongParser
     {
         var lowerY = row.Y - 18;
         var upperY = Math.Min(row.NextY - 12, row.Y + 54);
-        return page.Words
+        var words = page.Words
             .Where(word => IsInArtistBand(page, word, row.IsLeftColumn))
             .Where(word => word.CenterY >= lowerY && word.CenterY <= upperY)
-            .OrderBy(word => word.CenterY)
-            .ThenBy(word => word.X)
+            .ToList();
+
+        return OrderWordsByReadingLine(words);
+    }
+
+    private static IReadOnlyList<OcrWord> OrderWordsByReadingLine(IReadOnlyList<OcrWord> words)
+    {
+        var lines = new List<List<OcrWord>>();
+        foreach (var word in words.OrderBy(word => word.CenterY).ThenBy(word => word.X))
+        {
+            var line = lines.LastOrDefault();
+            if (line is not null && Math.Abs(line.Average(item => item.CenterY) - word.CenterY) <= 24)
+            {
+                line.Add(word);
+            }
+            else
+            {
+                lines.Add([word]);
+            }
+        }
+
+        return lines
+            .OrderBy(line => line.Average(word => word.CenterY))
+            .SelectMany(line => line.OrderBy(word => word.X))
             .ToList();
     }
 
@@ -226,7 +252,7 @@ public sealed partial class GoldenVoiceOcrSongParser
         return match.Success ? match.Groups["volume"].Value : string.Empty;
     }
 
-    private sealed record OcrRow(string SongNumber, double Y, bool IsLeftColumn)
+    private sealed record OcrRow(string SongNumber, double Y, bool IsLeftColumn, string TitlePrefix)
     {
         public double NextY { get; init; } = double.MaxValue;
     }
@@ -239,6 +265,9 @@ public sealed partial class GoldenVoiceOcrSongParser
 
     [GeneratedRegex(@"^\d{5,6}$", RegexOptions.Compiled)]
     private static partial Regex SongNumberRegex();
+
+    [GeneratedRegex(@"^(?<number>\d{5})(?<title>\D.+)$", RegexOptions.Compiled)]
+    private static partial Regex MergedSongNumberTitleRegex();
 
     [GeneratedRegex(@"(?<!\d)(?<volume>\d{1,4})(?!\d)", RegexOptions.Compiled)]
     private static partial Regex VolumeRegex();

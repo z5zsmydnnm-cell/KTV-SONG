@@ -104,6 +104,28 @@ public sealed class GoldenVoiceOcrSongParserTests
         Assert.Equal("I.O.I.O", song.Title);
     }
 
+    [Fact]
+    public void ParsePages_splits_song_number_and_title_when_ocr_merges_them()
+    {
+        var page = new OcrPage(
+            PageNumber: 1,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("01412AY0", 167, 2048, 286, 53),
+                Word("溫", 873, 2056, 28, 34), Word("嵐", 905, 2053, 28, 34)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "金嗓2.pdf");
+
+        var song = Assert.Single(result.Songs);
+        Assert.Empty(result.Issues);
+        Assert.Equal("01412", song.SongNumber);
+        Assert.Equal("AY0", song.Title);
+        Assert.Equal("溫嵐", song.Artist);
+    }
+
     private static OcrWord Word(string text, double x, double y, double width = 45, double height = 45)
     {
         return new OcrWord(text, x, y, width, height);
