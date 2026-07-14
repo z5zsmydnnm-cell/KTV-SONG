@@ -10,6 +10,8 @@ const CSV_URL = BASE + "/songs/master.csv";
 const IPHONE_CSV_REPO_PATH = "songs/iphone-local-songs.csv";
 const IPHONE_CSV_URL = BASE + "/" + IPHONE_CSV_REPO_PATH;
 const VERSION_URL = BASE + "/version.json";
+const SCRIPT_CACHE_FILE_NAME = "KTV_Pro_V8_3_Personal.cached.js";
+const SCRIPT_SELF_URL = BASE + "/scriptable/KTV_Pro_V8_3_Personal.js";
 
 const iCloudFM = FileManager.iCloud();
 const fm = FileManager.local();
@@ -22,6 +24,7 @@ const legacyDataDir = iCloudFM.joinPath(iCloudFM.documentsDirectory(), "KTV_PRO_
 const csvPath = fm.joinPath(dataDir, "master.csv");
 const localCsvPath = fm.joinPath(dataDir, "local_songs.csv");
 const githubLocalCsvPath = fm.joinPath(dataDir, "github_local_songs.csv");
+const scriptCachePath = fm.joinPath(dataDir, SCRIPT_CACHE_FILE_NAME);
 const favPath = fm.joinPath(dataDir, "favorites.json");
 const favYinyuanPath = fm.joinPath(dataDir, "favorites-yinyuan.json");
 const favJinsangPath = fm.joinPath(dataDir, "favorites-jinsang.json");
@@ -31,6 +34,7 @@ const recentPath = fm.joinPath(dataDir, "recent.json");
 const statsPath = fm.joinPath(dataDir, "stats.json");
 const settingPath = fm.joinPath(dataDir, "settings.json");
 const deletedPath = fm.joinPath(dataDir, "deleted.json");
+const cacheInfoPath = fm.joinPath(dataDir, "cache-info.json");
 
 migrateLegacyData();
 
@@ -45,6 +49,7 @@ let recent = loadJson(recentPath, []);
 let stats = loadJson(statsPath, {});
 let settings = loadJson(settingPath, { autoFavorite: true });
 let deletedKeys = loadJson(deletedPath, []);
+let cacheInfo = loadJson(cacheInfoPath, {});
 
 
 async function mainMenu() {
@@ -262,6 +267,41 @@ function saveLocalSongs() {
   }
 }
 
+function saveCacheInfo(source, masterCount, iphoneCount) {
+  cacheInfo = {
+    source: source,
+    branch: BRANCH,
+    updatedAt: new Date().toISOString(),
+    masterCount: masterCount || 0,
+    iphoneCount: iphoneCount || 0,
+    files: {
+      master: "KTV_PRO_V8/master.csv",
+      githubLocal: "KTV_PRO_V8/github_local_songs.csv",
+      local: "KTV_PRO_V8/local_songs.csv",
+      script: "KTV_PRO_V8/KTV_Pro_V8_3_Personal.cached.js"
+    }
+  };
+  saveJson(cacheInfoPath, cacheInfo);
+}
+
+function cacheMessage() {
+  return "\n\nStored on iPhone:\n" +
+    "KTV_PRO_V8/master.csv\n" +
+    "KTV_PRO_V8/github_local_songs.csv\n" +
+    "KTV_PRO_V8/local_songs.csv";
+}
+
+async function refreshScriptCache() {
+  try {
+    let code = await fetchTextNoCache(SCRIPT_SELF_URL, false);
+    if (!code || code.indexOf(APP) < 0) return false;
+    fm.writeString(scriptCachePath, code);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 async function updateLibrary() {
   try {
     let txt = await fetchTextNoCache(CSV_URL, false);
@@ -277,8 +317,10 @@ async function updateLibrary() {
       fm.writeString(githubLocalCsvPath, iphoneTxt);
     }
 
+    saveCacheInfo("updateLibrary", rows.length, iphoneRows.length);
+    let scriptCacheUpdated = await refreshScriptCache();
     await loadSongs();
-    await msg("更新完成", "GitHub 讀取成功\n主歌庫：" + rows.length + " 首\niPhone 同步：" + iphoneRows.length + " 首\n目前共：" + songs.length + " 首\n分支：" + BRANCH);
+    await msg("更新完成", "GitHub 讀取成功\n主歌庫：" + rows.length + " 首\niPhone 同步：" + iphoneRows.length + " 首\n目前共：" + songs.length + " 首\n分支：" + BRANCH + "\nScript cache: " + (scriptCacheUpdated ? "updated" : "kept") + cacheMessage());
   } catch (e) {
     await msg("更新失敗", String(e) + "\n\nURL:\n" + CSV_URL);
   }
@@ -315,8 +357,9 @@ async function syncLocalToGitHub() {
 
     fm.writeString(githubLocalCsvPath, csv);
     fm.writeString(csvPath, masterCsv);
+    saveCacheInfo("syncLocalToGitHub", csvToSongs(masterCsv).length, localSongs.length);
     await loadSongs();
-    await msg("同步完成", "已同步 " + localSongs.length + " 首到 GitHub：\n" + IPHONE_CSV_REPO_PATH + "\n/songs/master.csv");
+    await msg("同步完成", "已同步 " + localSongs.length + " 首到 GitHub：\n" + IPHONE_CSV_REPO_PATH + "\n/songs/master.csv" + cacheMessage());
   } catch (e) {
     await msg("同步失敗", String(e) + "\n\n請確認 GitHub Token 有 Contents Read/Write 權限。");
   }
@@ -918,7 +961,8 @@ function migrateLegacyData() {
       "recent.json",
       "stats.json",
       "settings.json",
-      "deleted.json"
+      "deleted.json",
+      "cache-info.json"
     ];
 
     for (let name of names) {
