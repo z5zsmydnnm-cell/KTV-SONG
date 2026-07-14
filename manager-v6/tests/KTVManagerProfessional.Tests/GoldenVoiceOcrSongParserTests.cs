@@ -126,6 +126,74 @@ public sealed class GoldenVoiceOcrSongParserTests
         Assert.Equal("溫嵐", song.Artist);
     }
 
+    [Fact]
+    public void ParsePages_uses_better_overlapping_ocr_alternatives_for_title()
+    {
+        var page = new OcrPage(
+            PageNumber: 17,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("10591", 164, 1570, 160, 52),
+                Word("和", 348, 1571), Word("イ", 348, 1571), Word("。", 370, 1571),
+                Word("何", 349, 1571), Word("日", 431, 1571), Word("君", 485, 1571),
+                Word("再", 552, 1571), Word("∕", 627, 1571), Word("來", 626, 1571),
+                Word("鄧", 865, 1571), Word("麗", 898, 1571), Word("君", 928, 1571)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "金嗓3.pdf");
+
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("10591", song.SongNumber);
+        Assert.Equal("何日君再來", song.Title);
+        Assert.Equal("鄧麗君", song.Artist);
+    }
+
+    [Fact]
+    public void ParsePages_does_not_include_right_column_star_in_left_artist()
+    {
+        var page = new OcrPage(
+            PageNumber: 17,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("48434", 192, 1430, 160, 52),
+                Word("住", 418, 1430), Word("在", 499, 1430), Word("心", 584, 1430), Word("裡", 661, 1430), Word("面", 752, 1430),
+                Word("吳", 866, 1430), Word("克", 897, 1430), Word("群", 928, 1430),
+                Word("*", 1028, 1430)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "金嗓3.pdf");
+
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("住在心裡面", song.Title);
+        Assert.Equal("吳克群", song.Artist);
+    }
+
+    [Fact]
+    public void ParsePages_does_not_include_next_row_artist_words()
+    {
+        var page = new OcrPage(
+            PageNumber: 17,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("56703", 194, 1665, 160, 52),
+                Word("何", 417, 1665), Word("日", 517, 1665), Word("君", 581, 1665), Word("回", 669, 1665), Word("來", 749, 1665),
+                Word("于", 866, 1665), Word("立", 897, 1665), Word("成", 928, 1665),
+                Word("情", 866, 1713), Word("歌", 897, 1713), Word("對", 928, 1713)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "金嗓3.pdf");
+
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("何日君回來", song.Title);
+        Assert.Equal("于立成", song.Artist);
+    }
+
     private static OcrWord Word(string text, double x, double y, double width = 45, double height = 45)
     {
         return new OcrWord(text, x, y, width, height);

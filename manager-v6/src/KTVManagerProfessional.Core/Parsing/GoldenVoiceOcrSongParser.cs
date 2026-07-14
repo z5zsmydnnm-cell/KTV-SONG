@@ -120,23 +120,91 @@ public sealed partial class GoldenVoiceOcrSongParser
 
     private static IReadOnlyList<OcrWord> FindTitleWords(OcrPage page, OcrRow row)
     {
-        return page.Words
+        var words = page.Words
             .Where(word => IsInTitleBand(page, word, row.IsLeftColumn))
             .Where(word => Math.Abs(word.CenterY - row.Y) <= 35)
-            .OrderBy(word => word.X)
             .ToList();
+
+        return OrderWordsByReadingLine(DeduplicateOcrAlternatives(words));
     }
 
     private static IReadOnlyList<OcrWord> FindArtistWords(OcrPage page, OcrRow row)
     {
-        var lowerY = row.Y - 18;
-        var upperY = Math.Min(row.NextY - 12, row.Y + 54);
+        var lowerY = row.Y - 45;
+        var upperY = Math.Min(row.NextY - 20, row.Y + 36);
         var words = page.Words
             .Where(word => IsInArtistBand(page, word, row.IsLeftColumn))
             .Where(word => word.CenterY >= lowerY && word.CenterY <= upperY)
             .ToList();
 
-        return OrderWordsByReadingLine(words);
+        return OrderWordsByReadingLine(DeduplicateOcrAlternatives(words));
+    }
+
+    private static IReadOnlyList<OcrWord> DeduplicateOcrAlternatives(IReadOnlyList<OcrWord> words)
+    {
+        var clusters = new List<List<(OcrWord Word, int Index)>>();
+        for (var index = 0; index < words.Count; index++)
+        {
+            var word = words[index];
+            var cluster = clusters.FirstOrDefault(items => items.Any(item => IsOverlappingAlternative(item.Word, word)));
+            if (cluster is null)
+            {
+                clusters.Add([(word, index)]);
+            }
+            else
+            {
+                cluster.Add((word, index));
+            }
+        }
+
+        return clusters
+            .Select(cluster => cluster
+                .OrderByDescending(item => ScoreOcrAlternative(item.Word.Text))
+                .ThenByDescending(item => item.Index)
+                .First()
+                .Word)
+            .ToList();
+    }
+
+    private static bool IsOverlappingAlternative(OcrWord left, OcrWord right)
+    {
+        return Math.Abs(left.CenterY - right.CenterY) <= 24 &&
+            Math.Abs(left.CenterX - right.CenterX) <= 24;
+    }
+
+    private static int ScoreOcrAlternative(string text)
+    {
+        if (text.Any(IsKana))
+        {
+            return 10;
+        }
+
+        if (text.All(char.IsPunctuation) || text.All(char.IsSymbol))
+        {
+            return 0;
+        }
+
+        if (text.Any(IsCjkUnifiedIdeograph))
+        {
+            return 100;
+        }
+
+        if (text.Any(char.IsLetterOrDigit))
+        {
+            return 80;
+        }
+
+        return 20;
+    }
+
+    private static bool IsKana(char character)
+    {
+        return character is >= '\u3040' and <= '\u30ff';
+    }
+
+    private static bool IsCjkUnifiedIdeograph(char character)
+    {
+        return character is >= '\u4e00' and <= '\u9fff';
     }
 
     private static IReadOnlyList<OcrWord> OrderWordsByReadingLine(IReadOnlyList<OcrWord> words)
@@ -181,7 +249,7 @@ public sealed partial class GoldenVoiceOcrSongParser
     {
         var width = page.Width;
         return isLeftColumn
-            ? word.CenterX >= width * 0.43 && word.CenterX <= width * 0.54
+            ? word.CenterX >= width * 0.43 && word.CenterX <= width * 0.50
             : word.CenterX >= width * 0.88 && word.CenterX <= width * 0.99;
     }
 

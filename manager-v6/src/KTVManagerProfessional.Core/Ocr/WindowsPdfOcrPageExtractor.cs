@@ -9,7 +9,7 @@ namespace KTVManagerProfessional.Core.Ocr;
 public sealed class WindowsPdfOcrPageExtractor : IPdfOcrPageExtractor
 {
     private const double RenderScale = 2.5;
-    private const double FallbackRenderScale = 2.2;
+    private static readonly double[] FallbackRenderScales = [2.2, 3.0];
 
     public bool IsAvailable => OperatingSystem.IsWindows() && CreatePrimaryEngine() is not null;
 
@@ -33,11 +33,15 @@ public sealed class WindowsPdfOcrPageExtractor : IPdfOcrPageExtractor
             cancellationToken.ThrowIfCancellationRequested();
             using var page = document.GetPage(index);
             var primary = await RecognizePageAsync(page, engine, RenderScale);
-            var fallback = await RecognizePageAsync(page, engine, FallbackRenderScale);
-            var words = MergeWords(primary.Words, ScaleWords(
-                fallback.Words,
-                primary.Width / (double)fallback.Width,
-                primary.Height / (double)fallback.Height));
+            var words = primary.Words.ToList();
+            foreach (var fallbackScale in FallbackRenderScales)
+            {
+                var fallback = await RecognizePageAsync(page, engine, fallbackScale);
+                words = MergeWords(words, ScaleWords(
+                    fallback.Words,
+                    primary.Width / (double)fallback.Width,
+                    primary.Height / (double)fallback.Height));
+            }
 
             if (japaneseEngine is not null && ShouldRunJapaneseOcr(words))
             {
@@ -117,8 +121,8 @@ public sealed class WindowsPdfOcrPageExtractor : IPdfOcrPageExtractor
     private static bool IsSameWord(OcrWord left, OcrWord right)
     {
         return string.Equals(left.Text, right.Text, StringComparison.Ordinal) &&
-            Math.Abs(left.CenterX - right.CenterX) <= 32 &&
-            Math.Abs(left.CenterY - right.CenterY) <= 32;
+            Math.Abs(left.CenterX - right.CenterX) <= 24 &&
+            Math.Abs(left.CenterY - right.CenterY) <= 24;
     }
 
     private static bool ShouldRunJapaneseOcr(IReadOnlyList<OcrWord> words)
