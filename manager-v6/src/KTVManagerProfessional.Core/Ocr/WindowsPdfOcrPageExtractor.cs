@@ -9,7 +9,13 @@ namespace KTVManagerProfessional.Core.Ocr;
 public sealed class WindowsPdfOcrPageExtractor : IPdfOcrPageExtractor
 {
     private const double RenderScale = 2.5;
+    private const double RegionRenderScale = 3.6;
     private static readonly double[] FallbackRenderScales = [2.2, 3.0];
+    private static readonly OcrRegion[] SupplementalRegions =
+    [
+        new(0.17, 0.055, 0.27, 0.925),
+        new(0.61, 0.055, 0.26, 0.925)
+    ];
 
     public bool IsAvailable => OperatingSystem.IsWindows() && CreatePrimaryEngine() is not null;
 
@@ -43,6 +49,9 @@ public sealed class WindowsPdfOcrPageExtractor : IPdfOcrPageExtractor
                     primary.Height / (double)fallback.Height));
             }
 
+            var regionWords = await RecognizePageRegionsAsync(page, engine, RegionRenderScale, primary.Width, primary.Height);
+            words = MergeWords(words, regionWords);
+
             if (japaneseEngine is not null && ShouldRunJapaneseOcr(words))
             {
                 var japanese = await RecognizePageAsync(page, japaneseEngine, RenderScale);
@@ -69,6 +78,48 @@ public sealed class WindowsPdfOcrPageExtractor : IPdfOcrPageExtractor
         var bitmap = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
         var result = await engine.RecognizeAsync(bitmap);
         return new OcrRenderResult(bitmap.PixelWidth, bitmap.PixelHeight, ToWords(result).ToList());
+    }
+
+    private static async Task<IReadOnlyList<OcrWord>> RecognizePageRegionsAsync(
+        PdfPage page,
+        OcrEngine engine,
+        double scale,
+        int targetWidth,
+        int targetHeight)
+    {
+        using var stream = new InMemoryRandomAccessStream();
+        await page.RenderToStreamAsync(stream, CreateRenderOptions(page, scale));
+        stream.Seek(0);
+
+        var decoder = await BitmapDecoder.CreateAsync(stream);
+        var words = new List<OcrWord>();
+        foreach (var region in SupplementalRegions)
+        {
+            var bounds = new BitmapBounds
+            {
+                X = (uint)Math.Round(decoder.PixelWidth * region.X),
+                Y = (uint)Math.Round(decoder.PixelHeight * region.Y),
+                Width = (uint)Math.Round(decoder.PixelWidth * region.Width),
+                Height = (uint)Math.Round(decoder.PixelHeight * region.Height)
+            };
+
+            var transform = new BitmapTransform { Bounds = bounds };
+            var bitmap = await decoder.GetSoftwareBitmapAsync(
+                BitmapPixelFormat.Bgra8,
+                BitmapAlphaMode.Premultiplied,
+                transform,
+                ExifOrientationMode.IgnoreExifOrientation,
+                ColorManagementMode.DoNotColorManage);
+            var result = await engine.RecognizeAsync(bitmap);
+            words.AddRange(ToWords(result).Select(word => new OcrWord(
+                word.Text,
+                (bounds.X + word.X) * targetWidth / (double)decoder.PixelWidth,
+                (bounds.Y + word.Y) * targetHeight / (double)decoder.PixelHeight,
+                word.Width * targetWidth / (double)decoder.PixelWidth,
+                word.Height * targetHeight / (double)decoder.PixelHeight)));
+        }
+
+        return words;
     }
 
     private static PdfPageRenderOptions CreateRenderOptions(PdfPage page, double scale)
@@ -167,4 +218,6 @@ public sealed class WindowsPdfOcrPageExtractor : IPdfOcrPageExtractor
     }
 
     private sealed record OcrRenderResult(int Width, int Height, IReadOnlyList<OcrWord> Words);
+
+    private sealed record OcrRegion(double X, double Y, double Width, double Height);
 }

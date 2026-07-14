@@ -23,7 +23,7 @@ public sealed partial class GoldenVoiceOcrSongParser
                 var title = NormalizeTitle(row.TitlePrefix + JoinWords(FindTitleWords(page, row)));
                 var artist = JoinWords(FindArtistWords(page, row));
 
-                if (string.IsNullOrWhiteSpace(title))
+                if (string.IsNullOrWhiteSpace(title) || !HasUsefulTitleText(title))
                 {
                     issues.Add(new ParseIssue(page.PageNumber, row.SongNumber, "OCR row is missing title."));
                     continue;
@@ -207,6 +207,14 @@ public sealed partial class GoldenVoiceOcrSongParser
         return character is >= '\u4e00' and <= '\u9fff';
     }
 
+    private static bool HasUsefulTitleText(string title)
+    {
+        return title.Any(character =>
+            char.IsLetter(character) ||
+            IsKana(character) ||
+            IsCjkUnifiedIdeograph(character));
+    }
+
     private static IReadOnlyList<OcrWord> OrderWordsByReadingLine(IReadOnlyList<OcrWord> words)
     {
         var lines = new List<List<OcrWord>>();
@@ -234,15 +242,15 @@ public sealed partial class GoldenVoiceOcrSongParser
         var width = page.Width;
         return isLeftColumn
             ? word.CenterX >= width * 0.07 && word.CenterX <= width * 0.18
-            : word.CenterX >= width * 0.53 && word.CenterX <= width * 0.62;
+            : word.CenterX >= width * 0.53 && word.CenterX <= width * 0.60;
     }
 
     private static bool IsInTitleBand(OcrPage page, OcrWord word, bool isLeftColumn)
     {
         var width = page.Width;
         return isLeftColumn
-            ? word.CenterX >= width * 0.18 && word.CenterX <= width * 0.43
-            : word.CenterX >= width * 0.63 && word.CenterX <= width * 0.85;
+            ? word.CenterX >= width * 0.17 && word.CenterX <= width * 0.43
+            : word.CenterX >= width * 0.61 && word.CenterX <= width * 0.85;
     }
 
     private static bool IsInArtistBand(OcrPage page, OcrWord word, bool isLeftColumn)
@@ -294,6 +302,13 @@ public sealed partial class GoldenVoiceOcrSongParser
         var normalized = title
             .Replace('\u2160', 'I')
             .Replace('\u00b7', '.');
+
+        while (normalized.Length > 1 &&
+            (char.IsDigit(normalized[0]) || char.IsPunctuation(normalized[0]) || char.IsSymbol(normalized[0])) &&
+            IsCjkUnifiedIdeograph(normalized[1]))
+        {
+            normalized = normalized[1..];
+        }
 
         if (!normalized.Contains('.', StringComparison.Ordinal))
         {

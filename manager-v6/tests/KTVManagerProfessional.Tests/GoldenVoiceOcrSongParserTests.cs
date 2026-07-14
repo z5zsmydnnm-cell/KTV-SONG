@@ -151,6 +151,70 @@ public sealed class GoldenVoiceOcrSongParserTests
     }
 
     [Fact]
+    public void ParsePages_keeps_title_words_near_column_start()
+    {
+        var page = new OcrPage(
+            PageNumber: 1,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("58717", 153, 2651, 161, 53),
+                Word("LEFT", 330, 2651, 40, 45),
+                Word("07488", 1089, 1136, 161, 54),
+                Word("RIGHT", 1210, 1136, 50, 45)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "??5.pdf");
+
+        Assert.Empty(result.Issues);
+        Assert.Contains(result.Songs, song => song.SongNumber == "58717" && song.Title == "LEFT");
+        Assert.Contains(result.Songs, song => song.SongNumber == "07488" && song.Title == "RIGHT");
+    }
+
+    [Fact]
+    public void ParsePages_removes_single_digit_ocr_marker_before_cjk_title()
+    {
+        var page = new OcrPage(
+            PageNumber: 1,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("25055", 1089, 1136, 161, 54),
+                Word("5", 1210, 1136, 20, 45),
+                Word("\u6709", 1278, 1136, 30, 45),
+                Word("\u60c5", 1347, 1136, 30, 45),
+                Word("\u4eba", 1418, 1136, 30, 45)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "??5.pdf");
+
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("25055", song.SongNumber);
+        Assert.Equal("\u6709\u60c5\u4eba", song.Title);
+    }
+
+    [Fact]
+    public void ParsePages_rejects_numeric_only_ocr_title()
+    {
+        var page = new OcrPage(
+            PageNumber: 1,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("07488", 1089, 1136, 161, 54),
+                Word("8", 1210, 1136, 20, 45)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "??5.pdf");
+
+        Assert.Empty(result.Songs);
+        Assert.Contains(result.Issues, issue => issue.Line == "07488");
+    }
+
+    [Fact]
     public void ParsePages_does_not_include_right_column_star_in_left_artist()
     {
         var page = new OcrPage(
