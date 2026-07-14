@@ -20,7 +20,7 @@ public sealed partial class GoldenVoiceOcrSongParser
             var language = DetectLanguage(page);
             foreach (var row in FindRows(page))
             {
-                var title = JoinWords(FindTitleWords(page, row));
+                var title = NormalizeTitle(JoinWords(FindTitleWords(page, row)));
                 var artist = JoinWords(FindArtistWords(page, row));
 
                 if (string.IsNullOrWhiteSpace(title))
@@ -139,8 +139,8 @@ public sealed partial class GoldenVoiceOcrSongParser
     {
         var width = page.Width;
         return isLeftColumn
-            ? word.CenterX >= width * 0.07 && word.CenterX <= width * 0.23
-            : word.CenterX >= width * 0.53 && word.CenterX <= width * 0.66;
+            ? word.CenterX >= width * 0.07 && word.CenterX <= width * 0.18
+            : word.CenterX >= width * 0.53 && word.CenterX <= width * 0.62;
     }
 
     private static bool IsInTitleBand(OcrPage page, OcrWord word, bool isLeftColumn)
@@ -162,6 +162,11 @@ public sealed partial class GoldenVoiceOcrSongParser
     private static string DetectLanguage(OcrPage page)
     {
         var text = JoinWords(page.Words);
+        if (text.Contains("\u65e5\u8a9e", StringComparison.Ordinal))
+        {
+            return "\u65e5\u8a9e";
+        }
+
         foreach (var language in new[] { "台語", "國語", "華語", "客語" })
         {
             if (text.Contains(language, StringComparison.Ordinal))
@@ -188,6 +193,31 @@ public sealed partial class GoldenVoiceOcrSongParser
         }
 
         return builder.ToString();
+    }
+
+    private static string NormalizeTitle(string title)
+    {
+        var normalized = title
+            .Replace('\u2160', 'I')
+            .Replace('\u00b7', '.');
+
+        if (!normalized.Contains('.', StringComparison.Ordinal))
+        {
+            return normalized;
+        }
+
+        var parts = normalized.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 3 || parts.Any(part => part.Length != 1 || !"10IO".Contains(part, StringComparison.OrdinalIgnoreCase)))
+        {
+            return normalized;
+        }
+
+        return string.Join(".", parts.Select(part => part switch
+        {
+            "1" => "I",
+            "0" => "O",
+            _ => part.ToUpperInvariant()
+        }));
     }
 
     private static string DetectVolume(string sourceName)

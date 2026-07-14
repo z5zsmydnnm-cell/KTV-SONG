@@ -61,6 +61,49 @@ public sealed class GoldenVoiceOcrSongParserTests
         Assert.Equal("光良", song.Artist);
     }
 
+    [Fact]
+    public void ParsePages_detects_japanese_pages()
+    {
+        var page = new OcrPage(
+            PageNumber: 1,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("日", 961, 96), Word("語", 1038, 91), Word("歌", 1133, 86), Word("曲", 1238, 86),
+                Word("40451", 162, 585, 164, 55),
+                Word("あ", 338, 586), Word("き", 401, 586), Word("ら", 463, 586), Word("め", 525, 586), Word("て", 587, 586)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "金嗓4.pdf");
+
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("日語", song.Language);
+        Assert.Equal("40451", song.SongNumber);
+        Assert.Equal("あきらめて", song.Title);
+    }
+
+    [Fact]
+    public void ParsePages_normalizes_ocr_confusion_in_dotted_io_titles()
+    {
+        var page = new OcrPage(
+            PageNumber: 1,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("國", 1650, 80), Word("語", 1710, 80),
+                Word("16458", 170, 980, 160, 55),
+                Word("1.0", 355, 980, 105, 55), Word("·", 470, 992, 18, 24), Word("I.0", 500, 980, 105, 55)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "金嗓2.pdf");
+
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("16458", song.SongNumber);
+        Assert.Equal("I.O.I.O", song.Title);
+    }
+
     private static OcrWord Word(string text, double x, double y, double width = 45, double height = 45)
     {
         return new OcrWord(text, x, y, width, height);
