@@ -20,6 +20,7 @@ const dir = fm.documentsDirectory();
 const dataDir = fm.joinPath(dir, "KTV_PRO_V8");
 if (!fm.fileExists(dataDir)) fm.createDirectory(dataDir);
 const legacyDataDir = iCloudFM.joinPath(iCloudFM.documentsDirectory(), "KTV_PRO_V8");
+const visibleDataDir = legacyDataDir;
 
 const csvPath = fm.joinPath(dataDir, "master.csv");
 const localCsvPath = fm.joinPath(dataDir, "local_songs.csv");
@@ -261,6 +262,7 @@ function saveLocalSongs() {
     s.title, s.singer, s.lang, s.yinyuan, s.jinsang, s.hongyin, s.youtube, s.note
   ].map(csvCell).join(",")).join("\n");
   fm.writeString(localCsvPath, header + body + (body ? "\n" : ""));
+  writeVisibleDataFile("local_songs.csv", fm.readString(localCsvPath));
   let saved = csvToSongs(fm.readString(localCsvPath));
   if (saved.length !== localSongs.length) {
     throw new Error("local_songs.csv 寫入驗證失敗，預期 " + localSongs.length + " 首，實際 " + saved.length + " 首。");
@@ -288,7 +290,9 @@ function cacheMessage() {
   return "\n\nStored on iPhone:\n" +
     "KTV_PRO_V8/master.csv\n" +
     "KTV_PRO_V8/github_local_songs.csv\n" +
-    "KTV_PRO_V8/local_songs.csv";
+    "KTV_PRO_V8/local_songs.csv\n\n" +
+    "Visible in Files app:\n" +
+    "iCloud Drive/Scriptable/KTV_PRO_V8";
 }
 
 async function refreshScriptCache() {
@@ -296,10 +300,40 @@ async function refreshScriptCache() {
     let code = await fetchTextNoCache(SCRIPT_SELF_URL, false);
     if (!code || code.indexOf(APP) < 0) return false;
     fm.writeString(scriptCachePath, code);
+    writeVisibleDataFile(SCRIPT_CACHE_FILE_NAME, code);
     return true;
   } catch (e) {
     return false;
   }
+}
+
+function ensureVisibleDataDir() {
+  try {
+    if (!iCloudFM.fileExists(visibleDataDir)) {
+      iCloudFM.createDirectory(visibleDataDir);
+    }
+  } catch (e) {}
+}
+
+function writeVisibleDataFile(name, text) {
+  try {
+    ensureVisibleDataDir();
+    iCloudFM.writeString(iCloudFM.joinPath(visibleDataDir, name), text || "");
+  } catch (e) {}
+}
+
+function mirrorCsvCachesToVisibleFiles() {
+  try {
+    if (fm.fileExists(csvPath)) {
+      writeVisibleDataFile("master.csv", fm.readString(csvPath));
+    }
+    if (fm.fileExists(githubLocalCsvPath)) {
+      writeVisibleDataFile("github_local_songs.csv", fm.readString(githubLocalCsvPath));
+    }
+    if (fm.fileExists(localCsvPath)) {
+      writeVisibleDataFile("local_songs.csv", fm.readString(localCsvPath));
+    }
+  } catch (e) {}
 }
 
 async function updateLibrary() {
@@ -317,6 +351,7 @@ async function updateLibrary() {
       fm.writeString(githubLocalCsvPath, iphoneTxt);
     }
 
+    mirrorCsvCachesToVisibleFiles();
     saveCacheInfo("updateLibrary", rows.length, iphoneRows.length);
     let scriptCacheUpdated = await refreshScriptCache();
     await loadSongs();
@@ -357,6 +392,7 @@ async function syncLocalToGitHub() {
 
     fm.writeString(githubLocalCsvPath, csv);
     fm.writeString(csvPath, masterCsv);
+    mirrorCsvCachesToVisibleFiles();
     saveCacheInfo("syncLocalToGitHub", csvToSongs(masterCsv).length, localSongs.length);
     await loadSongs();
     await msg("同步完成", "已同步 " + localSongs.length + " 首到 GitHub：\n" + IPHONE_CSV_REPO_PATH + "\n/songs/master.csv" + cacheMessage());

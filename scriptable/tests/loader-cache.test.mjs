@@ -7,6 +7,7 @@ const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const loaderPath = path.join(repoRoot, "scriptable", "KTV_Pro_V8_3_Loader.js");
 const loaderSource = fs.readFileSync(loaderPath, "utf8");
 const cachedScriptPath = "/docs/KTV_PRO_V8/KTV_Pro_V8_3_Personal.cached.js";
+const visibleStatusPath = "/docs/KTV_PRO_V8/loader-status.txt";
 const remoteScript = "// KTV Pro V8.3 Personal\n" +
   "globalThis.__ktvRunCount = (globalThis.__ktvRunCount || 0) + 1;";
 
@@ -44,10 +45,12 @@ class FakeFileManager {
 
 async function runLoader(initialFiles = {}) {
   const files = { ...initialFiles };
+  const visibleFiles = {};
   let requestCount = 0;
   let requestedUrl = "";
   let alertMessage = "";
   const fm = new FakeFileManager(files);
+  const visibleFM = new FakeFileManager(visibleFiles);
 
   class FakeRequest {
     constructor(url) {
@@ -78,7 +81,7 @@ async function runLoader(initialFiles = {}) {
   const context = {
     Alert: FakeAlert,
     Request: FakeRequest,
-    FileManager: { local: () => fm },
+    FileManager: { local: () => fm, iCloud: () => visibleFM },
     console,
     globalThis: {}
   };
@@ -86,7 +89,7 @@ async function runLoader(initialFiles = {}) {
   vm.createContext(context);
   await vm.runInContext("(async function(){\n" + loaderSource + "\n})()", context);
 
-  return { files, requestCount, requestedUrl, runCount: context.__ktvRunCount || 0, alertMessage };
+  return { files, visibleFiles, requestCount, requestedUrl, runCount: context.__ktvRunCount || 0, alertMessage };
 }
 
 async function testUsesCachedScriptWithoutNetwork() {
@@ -98,6 +101,7 @@ async function testUsesCachedScriptWithoutNetwork() {
   assert.equal(result.requestCount, 0);
   assert.equal(result.runCount, 1);
   assert.equal(result.files[cachedScriptPath], cachedScript);
+  assert.match(result.visibleFiles[visibleStatusPath], /source=local-cache/);
 }
 
 async function testDownloadsAndCachesWhenNoCachedScriptExists() {
@@ -107,6 +111,7 @@ async function testDownloadsAndCachesWhenNoCachedScriptExists() {
   assert.match(result.requestedUrl, /KTV_Pro_V8_3_Personal\.js/);
   assert.equal(result.files[cachedScriptPath], remoteScript);
   assert.equal(result.runCount, 1);
+  assert.match(result.visibleFiles[visibleStatusPath], /source=github-download/);
 }
 
 async function testDoesNotDownloadWhenCachedScriptThrows() {
