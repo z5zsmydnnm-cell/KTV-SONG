@@ -46,6 +46,7 @@ async function runLoader(initialFiles = {}) {
   const files = { ...initialFiles };
   let requestCount = 0;
   let requestedUrl = "";
+  let alertMessage = "";
   const fm = new FakeFileManager(files);
 
   class FakeRequest {
@@ -69,7 +70,9 @@ async function runLoader(initialFiles = {}) {
     }
 
     addAction() {}
-    async presentAlert() {}
+    async presentAlert() {
+      alertMessage = this.message;
+    }
   }
 
   const context = {
@@ -83,7 +86,7 @@ async function runLoader(initialFiles = {}) {
   vm.createContext(context);
   await vm.runInContext("(async function(){\n" + loaderSource + "\n})()", context);
 
-  return { files, requestCount, requestedUrl, runCount: context.__ktvRunCount || 0 };
+  return { files, requestCount, requestedUrl, runCount: context.__ktvRunCount || 0, alertMessage };
 }
 
 async function testUsesCachedScriptWithoutNetwork() {
@@ -106,6 +109,16 @@ async function testDownloadsAndCachesWhenNoCachedScriptExists() {
   assert.equal(result.runCount, 1);
 }
 
+async function testDoesNotDownloadWhenCachedScriptThrows() {
+  const cachedScript = "// KTV Pro V8.3 Personal\nthrow new Error('cached boom');";
+
+  const result = await runLoader({ [cachedScriptPath]: cachedScript });
+
+  assert.equal(result.requestCount, 0);
+  assert.match(result.alertMessage, /cached boom/);
+}
+
 await testUsesCachedScriptWithoutNetwork();
 await testDownloadsAndCachesWhenNoCachedScriptExists();
+await testDoesNotDownloadWhenCachedScriptThrows();
 console.log("loader-cache tests passed");

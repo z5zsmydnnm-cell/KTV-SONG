@@ -21,13 +21,7 @@ try {
     code = await downloadAndCacheScript();
   }
 
-  try {
-    await runScript(code);
-  } catch (cachedError) {
-    if (!usedCache) throw cachedError;
-    code = await downloadAndCacheScript();
-    await runScript(code);
-  }
+  await runScript(code);
 } catch (e) {
   const a = new Alert();
   a.title = "KTV Loader Error";
