@@ -21,8 +21,18 @@ public static partial class InYuanSongParser
         "Slow Disco",
         "Slow Rock",
         "Slow Soul",
+        "Hip-Hop",
         "Cha Cha",
         "Tango",
+        "勃露斯",
+        "吉魯巴",
+        "迪斯可",
+        "華爾滋",
+        "恰恰",
+        "倫巴",
+        "探戈",
+        "梭",
+        "扭扭",
         "勃露斯",
         "吉魯巴",
         "梭",
@@ -45,10 +55,16 @@ public static partial class InYuanSongParser
         var issues = new List<ParseIssue>();
         var currentLanguage = string.Empty;
         var lines = ToLines(text);
-        songs.AddRange(ParseOldCatalogBlocks(lines, volume));
+        var oldCatalogBlocks = ParseOldCatalogBlocks(lines, volume);
+        songs.AddRange(oldCatalogBlocks.Songs);
 
         for (var index = 0; index < lines.Count; index++)
         {
+            if (oldCatalogBlocks.ConsumedLineNumbers.Contains(lines[index].Number))
+            {
+                continue;
+            }
+
             var line = lines[index].Text;
 
             if (TryDetectLanguage(line, out var language))
@@ -278,17 +294,18 @@ public static partial class InYuanSongParser
         return true;
     }
 
-    private static IReadOnlyList<SongRecord> ParseOldCatalogBlocks(IReadOnlyList<(int Number, string Text)> lines, string volume)
+    private static OldCatalogBlockParseResult ParseOldCatalogBlocks(IReadOnlyList<(int Number, string Text)> lines, string volume)
     {
         var songs = new List<SongRecord>();
-        var block = new List<string>();
+        var consumedLineNumbers = new HashSet<int>();
+        var block = new List<(int Number, string Text)>();
         var inBlock = false;
         var pendingLanguage = string.Empty;
         var blockLanguage = string.Empty;
 
-        foreach (var line in lines.Select(item => item.Text))
+        foreach (var line in lines)
         {
-            if (TryDetectOldCatalogLanguageLine(line, out var detectedLanguage))
+            if (TryDetectOldCatalogLanguageLine(line.Text, out var detectedLanguage))
             {
                 pendingLanguage = detectedLanguage;
                 if (inBlock)
@@ -299,19 +316,20 @@ public static partial class InYuanSongParser
                 continue;
             }
 
-            if (TryStartOldCatalogBlock(line, out var rest))
+            if (TryStartOldCatalogBlock(line.Text, out var rest))
             {
-                AddOldCatalogBlock(block, volume, blockLanguage, songs);
+                AddOldCatalogBlock(block, volume, blockLanguage, songs, consumedLineNumbers);
                 block.Clear();
                 inBlock = true;
                 blockLanguage = pendingLanguage;
+                block.Add((line.Number, string.Empty));
                 if (TryDetectOldCatalogLanguageLine(rest, out var markerLanguage))
                 {
                     blockLanguage = markerLanguage;
                 }
                 else if (rest.Length > 0)
                 {
-                    block.Add(rest);
+                    block[^1] = (line.Number, rest);
                 }
 
                 continue;
@@ -323,15 +341,24 @@ public static partial class InYuanSongParser
             }
         }
 
-        AddOldCatalogBlock(block, volume, blockLanguage, songs);
-        return songs;
+        AddOldCatalogBlock(block, volume, blockLanguage, songs, consumedLineNumbers);
+        return new OldCatalogBlockParseResult(songs, consumedLineNumbers);
     }
 
-    private static void AddOldCatalogBlock(List<string> block, string volume, string language, List<SongRecord> songs)
+    private static void AddOldCatalogBlock(
+        List<(int Number, string Text)> block,
+        string volume,
+        string language,
+        List<SongRecord> songs,
+        HashSet<int> consumedLineNumbers)
     {
-        if (TryParseOldCatalogBlock(block, volume, language, out var song))
+        if (TryParseOldCatalogBlock(block.Select(line => line.Text).ToList(), volume, language, out var song))
         {
             songs.Add(song);
+            foreach (var lineNumber in block.Select(line => line.Number))
+            {
+                consumedLineNumbers.Add(lineNumber);
+            }
         }
     }
 
@@ -430,7 +457,7 @@ public static partial class InYuanSongParser
 
     private static bool IsOldCatalogMarker(char value)
     {
-        return value is '\u25cf' or '\u25cb' or '\u2605' or '\u25c6' or '\u25c7' or '*';
+        return value is '\u25cf' or '\u25cb' or '\u2605' or '\u25c6' or '\u25c7' or '\u0095' or '\u009b' or '*';
     }
 
     private static bool TryParseOldCatalogBlockWithoutLanguage(
@@ -586,6 +613,8 @@ public static partial class InYuanSongParser
 
         public List<string> ArtistParts { get; } = [];
     }
+
+    private sealed record OldCatalogBlockParseResult(IReadOnlyList<SongRecord> Songs, HashSet<int> ConsumedLineNumbers);
 
     [GeneratedRegex(@"(?<!\d)(?<volume>\d{4})(?!\d)", RegexOptions.Compiled)]
     private static partial Regex VolumeRegex();

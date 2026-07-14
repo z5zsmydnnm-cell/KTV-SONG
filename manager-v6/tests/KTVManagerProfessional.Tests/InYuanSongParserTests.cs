@@ -232,4 +232,39 @@ public sealed class InYuanSongParserTests
         Assert.Contains(new SongRecord("50072", "四面楚歌", "周杰倫", "國語", "音圓", "1140"), result.Songs);
         Assert.DoesNotContain(result.Songs, song => song.SongNumber == "50150" && song.Title.Contains("四面楚歌", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void ParseText_supports_6107_old_catalog_blocks_with_control_marker_and_number_first()
+    {
+        var text = """
+        
+        55966
+        王建傑 勃露斯
+        成全 台
+         詹曼鈴/沈建豪 勃露斯
+        55961 背後 台
+        """;
+
+        var result = InYuanSongParser.ParseText(text, "6107.pdf");
+
+        Assert.Empty(result.Issues);
+        Assert.Contains(new SongRecord("55966", "成全", "王建傑", "台語", "音圓", "6107"), result.Songs);
+        Assert.Contains(new SongRecord("55961", "背後", "詹曼鈴/沈建豪", "台語", "音圓", "6107"), result.Songs);
+    }
+
+    [Fact]
+    public void ParseText_strips_chinese_rhythm_suffixes_from_old_catalog_artists()
+    {
+        var text = """
+        
+        羅百吉/寶貝 迪斯可
+        台灣女孩 國
+        51023
+        """;
+
+        var result = InYuanSongParser.ParseText(text, "6107.pdf");
+
+        Assert.Empty(result.Issues);
+        Assert.Contains(new SongRecord("51023", "台灣女孩", "羅百吉/寶貝", "國語", "音圓", "6107"), result.Songs);
+    }
 }
