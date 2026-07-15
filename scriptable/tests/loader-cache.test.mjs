@@ -7,7 +7,6 @@ const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const loaderPath = path.join(repoRoot, "scriptable", "KTV_Pro_V8_3_Loader.js");
 const loaderSource = fs.readFileSync(loaderPath, "utf8");
 const cachedScriptPath = "/docs/KTV_PRO_V8/KTV_Pro_V8_3_Personal.cached.js";
-const visibleStatusPath = "/docs/KTV_PRO_V8/loader-status.txt";
 const remoteScript = "// KTV Pro V8.3 Personal\n" +
   "globalThis.__ktvRunCount = (globalThis.__ktvRunCount || 0) + 1;";
 
@@ -45,12 +44,10 @@ class FakeFileManager {
 
 async function runLoader(initialFiles = {}) {
   const files = { ...initialFiles };
-  const visibleFiles = {};
   let requestCount = 0;
   let requestedUrl = "";
   let alertMessage = "";
   const fm = new FakeFileManager(files);
-  const visibleFM = new FakeFileManager(visibleFiles);
 
   class FakeRequest {
     constructor(url) {
@@ -81,7 +78,7 @@ async function runLoader(initialFiles = {}) {
   const context = {
     Alert: FakeAlert,
     Request: FakeRequest,
-    FileManager: { local: () => fm, iCloud: () => visibleFM },
+    FileManager: { local: () => fm },
     console,
     globalThis: {}
   };
@@ -89,7 +86,7 @@ async function runLoader(initialFiles = {}) {
   vm.createContext(context);
   await vm.runInContext("(async function(){\n" + loaderSource + "\n})()", context);
 
-  return { files, visibleFiles, requestCount, requestedUrl, runCount: context.__ktvRunCount || 0, alertMessage };
+  return { files, requestCount, requestedUrl, runCount: context.__ktvRunCount || 0, alertMessage };
 }
 
 async function testUsesCachedScriptWithoutNetwork() {
@@ -101,17 +98,15 @@ async function testUsesCachedScriptWithoutNetwork() {
   assert.equal(result.requestCount, 0);
   assert.equal(result.runCount, 1);
   assert.equal(result.files[cachedScriptPath], cachedScript);
-  assert.match(result.visibleFiles[visibleStatusPath], /source=local-cache/);
+  assert.match(result.files["/docs/KTV_PRO_V8/loader-status.txt"], /source=local-cache/);
 }
 
-async function testDownloadsAndCachesWhenNoCachedScriptExists() {
+async function testShowsInstallMessageWhenNoCachedScriptExists() {
   const result = await runLoader();
 
-  assert.equal(result.requestCount, 1);
-  assert.match(result.requestedUrl, /KTV_Pro_V8_3_Personal\.js/);
-  assert.equal(result.files[cachedScriptPath], remoteScript);
-  assert.equal(result.runCount, 1);
-  assert.match(result.visibleFiles[visibleStatusPath], /source=github-download/);
+  assert.equal(result.requestCount, 0);
+  assert.equal(result.runCount, 0);
+  assert.match(result.alertMessage, /Install/);
 }
 
 async function testDoesNotDownloadWhenCachedScriptThrows() {
@@ -124,6 +119,6 @@ async function testDoesNotDownloadWhenCachedScriptThrows() {
 }
 
 await testUsesCachedScriptWithoutNetwork();
-await testDownloadsAndCachesWhenNoCachedScriptExists();
+await testShowsInstallMessageWhenNoCachedScriptExists();
 await testDoesNotDownloadWhenCachedScriptThrows();
 console.log("loader-cache tests passed");
