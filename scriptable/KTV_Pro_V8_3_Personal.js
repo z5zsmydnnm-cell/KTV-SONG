@@ -13,14 +13,12 @@ const VERSION_URL = BASE + "/version.json";
 const SCRIPT_CACHE_FILE_NAME = "KTV_Pro_V8_3_Personal.cached.js";
 const SCRIPT_SELF_URL = BASE + "/scriptable/KTV_Pro_V8_3_Personal.js";
 
-const iCloudFM = FileManager.iCloud();
 const fm = FileManager.local();
 const localFM = fm;
 const dir = fm.documentsDirectory();
 const dataDir = fm.joinPath(dir, "KTV_PRO_V8");
 if (!fm.fileExists(dataDir)) fm.createDirectory(dataDir);
-const legacyDataDir = iCloudFM.joinPath(iCloudFM.documentsDirectory(), "KTV_PRO_V8");
-const visibleDataDir = legacyDataDir;
+const visibleDataDirName = "KTV_PRO_V8";
 
 const csvPath = fm.joinPath(dataDir, "master.csv");
 const localCsvPath = fm.joinPath(dataDir, "local_songs.csv");
@@ -36,8 +34,6 @@ const statsPath = fm.joinPath(dataDir, "stats.json");
 const settingPath = fm.joinPath(dataDir, "settings.json");
 const deletedPath = fm.joinPath(dataDir, "deleted.json");
 const cacheInfoPath = fm.joinPath(dataDir, "cache-info.json");
-
-migrateLegacyData();
 
 let songs = [];
 let localSongs = [];
@@ -307,18 +303,38 @@ async function refreshScriptCache() {
   }
 }
 
+function getICloudFM() {
+  try {
+    return FileManager.iCloud();
+  } catch (e) {
+    return null;
+  }
+}
+
+function getVisibleDataDir(cloudFM) {
+  return cloudFM.joinPath(cloudFM.documentsDirectory(), visibleDataDirName);
+}
+
 function ensureVisibleDataDir() {
   try {
-    if (!iCloudFM.fileExists(visibleDataDir)) {
-      iCloudFM.createDirectory(visibleDataDir);
+    let cloudFM = getICloudFM();
+    if (!cloudFM) return null;
+
+    let visibleDataDir = getVisibleDataDir(cloudFM);
+    if (!cloudFM.fileExists(visibleDataDir)) {
+      cloudFM.createDirectory(visibleDataDir);
     }
-  } catch (e) {}
+    return { cloudFM: cloudFM, visibleDataDir: visibleDataDir };
+  } catch (e) {
+    return null;
+  }
 }
 
 function writeVisibleDataFile(name, text) {
   try {
-    ensureVisibleDataDir();
-    iCloudFM.writeString(iCloudFM.joinPath(visibleDataDir, name), text || "");
+    let visible = ensureVisibleDataDir();
+    if (!visible) return;
+    visible.cloudFM.writeString(visible.cloudFM.joinPath(visible.visibleDataDir, name), text || "");
   } catch (e) {}
 }
 
@@ -984,7 +1000,12 @@ function saveJson(path, value) {
 
 function migrateLegacyData() {
   try {
+    let iCloudFM = getICloudFM();
+    if (!iCloudFM) return;
+
+    let legacyDataDir = getVisibleDataDir(iCloudFM);
     if (!iCloudFM.fileExists(legacyDataDir)) return;
+
     let names = [
       "master.csv",
       "local_songs.csv",
