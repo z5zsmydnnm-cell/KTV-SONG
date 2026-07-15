@@ -215,6 +215,29 @@ public sealed class GoldenVoiceOcrSongParserTests
     }
 
     [Fact]
+    public void ParsePages_trims_trailing_ocr_noise_from_six_digit_song_number()
+    {
+        var page = new OcrPage(
+            PageNumber: 1,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("463563", 164, 1136, 190, 54),
+                Word("\u6642\u9593", 355, 1136, 60, 45),
+                Word("\u6709\u6dda", 455, 1136, 60, 45),
+                Word("\u5f35\u5b78\u53cb", 866, 1136, 70, 45)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "金嗓1.pdf");
+
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("46356", song.SongNumber);
+        Assert.Equal("\u6642\u9593\u6709\u6dda", song.Title);
+        Assert.Equal("\u5f35\u5b78\u53cb", song.Artist);
+    }
+
+    [Fact]
     public void ParsePages_does_not_include_right_column_star_in_left_artist()
     {
         var page = new OcrPage(

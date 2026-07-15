@@ -99,6 +99,7 @@ public sealed partial class GoldenVoiceOcrSongParser
                 ? mergedSongTitle.Groups["number"].Value
                 : string.Concat(orderedGroup.Select(word => NonDigitRegex().Replace(word.Text, string.Empty)));
 
+            digits = NormalizeSongNumber(digits);
             if (!SongNumberRegex().IsMatch(digits))
             {
                 continue;
@@ -329,6 +330,11 @@ public sealed partial class GoldenVoiceOcrSongParser
         }));
     }
 
+    private static string NormalizeSongNumber(string digits)
+    {
+        return digits.Length == 6 ? digits[..5] : digits;
+    }
+
     private static string DetectVolume(string sourceName)
     {
         var match = VolumeRegex().Match(sourceName ?? string.Empty);
@@ -346,7 +352,7 @@ public sealed partial class GoldenVoiceOcrSongParser
     [GeneratedRegex(@"\D", RegexOptions.Compiled)]
     private static partial Regex NonDigitRegex();
 
-    [GeneratedRegex(@"^\d{5,6}$", RegexOptions.Compiled)]
+    [GeneratedRegex(@"^\d{5}$", RegexOptions.Compiled)]
     private static partial Regex SongNumberRegex();
 
     [GeneratedRegex(@"^(?<number>\d{5})(?<title>\D.+)$", RegexOptions.Compiled)]
