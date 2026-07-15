@@ -246,10 +246,19 @@ async function loadSongs() {
     } catch (e) {}
   }
 
-  songs = songs
-    .filter(s => s.title || s.singer || s.yinyuan || s.jinsang || s.hongyin || s.youtube)
-    .filter(s => !deletedKeys.includes(songKey(s)))
-    .filter((s, i, arr) => arr.findIndex(x => songKey(x) === songKey(s)) === i);
+  let deletedSet = new Set(deletedKeys);
+  let seen = new Set();
+  let uniqueSongs = [];
+  for (let s of songs) {
+    if (!(s.title || s.singer || s.yinyuan || s.jinsang || s.hongyin || s.youtube)) continue;
+
+    let key = songKey(s);
+    if (deletedSet.has(key) || seen.has(key)) continue;
+
+    seen.add(key);
+    uniqueSongs.push(s);
+  }
+  songs = uniqueSongs;
 }
 
 function saveLocalSongs() {
