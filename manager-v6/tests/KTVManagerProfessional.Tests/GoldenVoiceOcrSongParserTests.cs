@@ -238,6 +238,30 @@ public sealed class GoldenVoiceOcrSongParserTests
     }
 
     [Fact]
+    public void ParsePages_normalizes_common_piaobo_title_ocr_confusion()
+    {
+        var page = new OcrPage(
+            PageNumber: 1,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("28889", 164, 1136, 160, 54),
+                Word("\u7968\u6cca", 355, 1136, 60, 45),
+                Word("\u884c\u8239\u4eba", 455, 1136, 90, 45),
+                Word("\u77f3\u55ac", 866, 1136, 70, 45)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "???7.pdf");
+
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("28889", song.SongNumber);
+        Assert.Equal("\u6f02\u6cca\u884c\u8239\u4eba", song.Title);
+        Assert.Equal("\u77f3\u55ac", song.Artist);
+        Assert.Equal("7", song.Volume);
+    }
+
+    [Fact]
     public void ParsePages_does_not_include_right_column_star_in_left_artist()
     {
         var page = new OcrPage(

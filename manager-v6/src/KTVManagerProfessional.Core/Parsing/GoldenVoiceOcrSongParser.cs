@@ -304,6 +304,8 @@ public sealed partial class GoldenVoiceOcrSongParser
             .Replace('\u2160', 'I')
             .Replace('\u00b7', '.');
 
+        normalized = NormalizeCommonOcrTitleConfusions(normalized);
+
         while (normalized.Length > 1 &&
             (char.IsDigit(normalized[0]) || char.IsPunctuation(normalized[0]) || char.IsSymbol(normalized[0])) &&
             IsCjkUnifiedIdeograph(normalized[1]))
@@ -328,6 +330,11 @@ public sealed partial class GoldenVoiceOcrSongParser
             "0" => "O",
             _ => part.ToUpperInvariant()
         }));
+    }
+
+    private static string NormalizeCommonOcrTitleConfusions(string title)
+    {
+        return title.Replace("\u7968\u6cca\u884c\u8239\u4eba", "\u6f02\u6cca\u884c\u8239\u4eba", StringComparison.Ordinal);
     }
 
     private static string NormalizeSongNumber(string digits)
