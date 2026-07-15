@@ -87,13 +87,18 @@ public sealed class CsvSongParser
     {
         for (var index = 0; index < headers.Count; index++)
         {
-            if (string.Equals(headers[index].Trim(), name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(NormalizeHeader(headers[index]), name, StringComparison.OrdinalIgnoreCase))
             {
                 return index;
             }
         }
 
         return null;
+    }
+
+    private static string NormalizeHeader(string header)
+    {
+        return header.Trim().TrimStart('\uFEFF');
     }
 
     private static string Get(IReadOnlyList<string> row, int? index)

@@ -42,4 +42,21 @@ public sealed class CsvSongParserTests
         Assert.Equal("國語", song.Language);
         Assert.Equal(BrandCode.GoldenVoice, song.BrandCode);
     }
+
+    [Fact]
+    public void ParseFile_reads_utf8_bom_master_csv_headers()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"master-{Guid.NewGuid():N}.csv");
+        File.WriteAllText(
+            path,
+            "\uFEFF歌名,歌手,語言,音圓代號,金嗓代號,弘音代號,集數,備註\r\n" +
+            "測試歌,測試歌手,台語,201811,301234,,1356,\r\n");
+
+        var result = new CsvSongParser().ParseFile(path, BrandCode.Unknown);
+
+        Assert.Empty(result.Issues);
+        Assert.Equal(2, result.Songs.Count);
+        Assert.Contains(result.Songs, song => song.BrandCode == BrandCode.InYuan && song.SongNumber == "201811");
+        Assert.Contains(result.Songs, song => song.BrandCode == BrandCode.GoldenVoice && song.SongNumber == "301234");
+    }
 }
