@@ -262,6 +262,51 @@ public sealed class GoldenVoiceOcrSongParserTests
     }
 
     [Fact]
+    public void ParsePages_normalizes_common_yizhenfeng_title_ocr_confusion()
+    {
+        var page = new OcrPage(
+            PageNumber: 1,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("47421", 164, 1136, 160, 54),
+                Word("\u611b\u611b\u5fd9\u60c5", 355, 1136, 120, 45),
+                Word("\u4e00\u961d\u9663\u98a8\u98a8", 510, 1136, 120, 45),
+                Word("\u5510\u5137", 866, 1136, 70, 45)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "???8.pdf");
+
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("47421", song.SongNumber);
+        Assert.Equal("\u611b\u60c5\u4e00\u9663\u98a8", song.Title);
+        Assert.Equal("\u5510\u5137", song.Artist);
+        Assert.Equal("8", song.Volume);
+    }
+
+    [Fact]
+    public void ParsePages_removes_multiple_leading_ocr_markers_before_cjk_title()
+    {
+        var page = new OcrPage(
+            PageNumber: 1,
+            Width: 1984,
+            Height: 2806,
+            Words:
+            [
+                Word("46603", 164, 1136, 160, 54),
+                Word(")3)3", 355, 1136, 80, 45),
+                Word("\u5abd\u5abd\u8acb\u4f60\u514d\u639b\u5fc3", 455, 1136, 180, 45)
+            ]);
+
+        var result = new GoldenVoiceOcrSongParser().ParsePages([page], "???8.pdf");
+
+        var song = Assert.Single(result.Songs);
+        Assert.Equal("46603", song.SongNumber);
+        Assert.Equal("\u5abd\u5abd\u8acb\u4f60\u514d\u639b\u5fc3", song.Title);
+    }
+
+    [Fact]
     public void ParsePages_does_not_include_right_column_star_in_left_artist()
     {
         var page = new OcrPage(

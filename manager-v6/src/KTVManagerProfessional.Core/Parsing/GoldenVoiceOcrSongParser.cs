@@ -305,13 +305,7 @@ public sealed partial class GoldenVoiceOcrSongParser
             .Replace('\u00b7', '.');
 
         normalized = NormalizeCommonOcrTitleConfusions(normalized);
-
-        while (normalized.Length > 1 &&
-            (char.IsDigit(normalized[0]) || char.IsPunctuation(normalized[0]) || char.IsSymbol(normalized[0])) &&
-            IsCjkUnifiedIdeograph(normalized[1]))
-        {
-            normalized = normalized[1..];
-        }
+        normalized = StripLeadingOcrMarkers(normalized);
 
         if (!normalized.Contains('.', StringComparison.Ordinal))
         {
@@ -334,7 +328,31 @@ public sealed partial class GoldenVoiceOcrSongParser
 
     private static string NormalizeCommonOcrTitleConfusions(string title)
     {
-        return title.Replace("\u7968\u6cca\u884c\u8239\u4eba", "\u6f02\u6cca\u884c\u8239\u4eba", StringComparison.Ordinal);
+        return title
+            .Replace("\u7968\u6cca\u884c\u8239\u4eba", "\u6f02\u6cca\u884c\u8239\u4eba", StringComparison.Ordinal)
+            .Replace("\u611b\u611b\u5fd9\u60c5\u4e00\u961d\u9663\u98a8\u98a8", "\u611b\u60c5\u4e00\u9663\u98a8", StringComparison.Ordinal)
+            .Replace("\u4e00\u961d\u9663", "\u4e00\u9663", StringComparison.Ordinal)
+            .Replace("\u4e00\u9663\u98a8\u98a8", "\u4e00\u9663\u98a8", StringComparison.Ordinal);
+    }
+
+    private static string StripLeadingOcrMarkers(string title)
+    {
+        var searchLength = Math.Min(title.Length, 6);
+        for (var index = 1; index < searchLength; index++)
+        {
+            if (IsCjkUnifiedIdeograph(title[index]) &&
+                title[..index].All(character => char.IsDigit(character) || char.IsPunctuation(character) || char.IsSymbol(character)))
+            {
+                return title[index..];
+            }
+        }
+
+        if (title.Length > 1 && title[0] == '\u5202' && IsCjkUnifiedIdeograph(title[1]))
+        {
+            return title[1..];
+        }
+
+        return title;
     }
 
     private static string NormalizeSongNumber(string digits)
