@@ -7,6 +7,12 @@ const CACHE_DIR_NAME = "KTV_PRO_V8";
 const CACHE_FILE_NAME = "KTV_Pro_V8_3_Personal.cached.js";
 const STATUS_FILE_NAME = "loader-status.txt";
 const SCRIPT_MARKER = "KTV Pro V8.3 Personal";
+const RESET_GITHUB_LIBRARY_CACHE_ON_INSTALL = true;
+const STALE_LIBRARY_FILES = [
+  "master.csv",
+  "github_local_songs.csv",
+  "cache-info.json"
+];
 
 const fm = FileManager.local();
 const visibleFM = FileManager.iCloud();
@@ -16,15 +22,21 @@ const visibleDir = visibleFM.joinPath(visibleFM.documentsDirectory(), CACHE_DIR_
 
 try {
   ensureDirectories();
+  const resetCount = resetStaleLibraryCache();
   const code = await downloadScript();
   fm.writeString(cachePath, code);
   writeVisibleFile(CACHE_FILE_NAME, code);
-  writeStatus("installed", "Downloaded GitHub script and saved local cache.");
+  writeStatus(
+    "installed",
+    "Downloaded GitHub script and saved local cache. Cleared stale library files: " + resetCount
+  );
 
   const a = new Alert();
   a.title = "KTV Cache Installed";
   a.message =
     "Cache installed on iPhone.\n\n" +
+    "Old master/github CSV cache cleared: " + resetCount + "\n" +
+    "local_songs.csv kept.\n\n" +
     "Now run:\nKTV_Pro_V8_3_Loader.js\n\n" +
     "Visible folder:\niCloud Drive/Scriptable/KTV_PRO_V8";
   a.addAction("OK");
@@ -45,6 +57,37 @@ function ensureDirectories() {
   try {
     if (!visibleFM.fileExists(visibleDir)) {
       visibleFM.createDirectory(visibleDir);
+    }
+  } catch (e) {}
+}
+
+function resetStaleLibraryCache() {
+  if (!RESET_GITHUB_LIBRARY_CACHE_ON_INSTALL) return 0;
+
+  let removed = 0;
+  for (const name of STALE_LIBRARY_FILES) {
+    if (removeLocalFile(name)) removed++;
+    removeVisibleFile(name);
+  }
+  return removed;
+}
+
+function removeLocalFile(name) {
+  try {
+    const filePath = fm.joinPath(cacheDir, name);
+    if (!fm.fileExists(filePath)) return false;
+    fm.remove(filePath);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function removeVisibleFile(name) {
+  try {
+    const filePath = visibleFM.joinPath(visibleDir, name);
+    if (visibleFM.fileExists(filePath)) {
+      visibleFM.remove(filePath);
     }
   } catch (e) {}
 }
