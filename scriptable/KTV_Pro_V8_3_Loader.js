@@ -5,6 +5,7 @@
 const CACHE_DIR_NAME = "KTV_PRO_V8";
 const CACHE_FILE_NAME = "KTV_Pro_V8_3_Personal.cached.js";
 const SCRIPT_MARKER = "KTV Pro V8.3 Personal";
+const SHOW_LOCAL_CACHE_CONFIRM = true;
 
 const fm = FileManager.local();
 const cacheDir = fm.joinPath(fm.documentsDirectory(), CACHE_DIR_NAME);
@@ -21,6 +22,10 @@ try {
       "KTV_Pro_V8_3_Install_Cache.js\n\n" +
       "After install, open this loader again."
     );
+  }
+
+  if (SHOW_LOCAL_CACHE_CONFIRM) {
+    await confirmLocalCache(code);
   }
 
   await runScript(code);
@@ -50,6 +55,24 @@ function readCachedScript() {
 
 function isValidScript(code) {
   return !!code && String(code).indexOf(SCRIPT_MARKER) >= 0;
+}
+
+async function confirmLocalCache(code) {
+  const a = new Alert();
+  a.title = "KTV Loader";
+  a.message =
+    "Using iPhone local cache.\n" +
+    "Loader does not read GitHub.\n\n" +
+    "Cache file:\n" +
+    CACHE_DIR_NAME + "/" + CACHE_FILE_NAME + "\n\n" +
+    "Cache size: " + String(code.length) + " chars";
+  a.addAction("Open");
+  a.addCancelAction("Stop");
+
+  const result = await a.presentAlert();
+  if (result < 0) {
+    throw new Error("User stopped before opening cached app.");
+  }
 }
 
 async function runScript(code) {

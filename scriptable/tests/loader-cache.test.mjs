@@ -70,6 +70,7 @@ async function runLoader(initialFiles = {}) {
     }
 
     addAction() {}
+    addCancelAction() {}
     async presentAlert() {
       alertMessage = this.message;
     }
