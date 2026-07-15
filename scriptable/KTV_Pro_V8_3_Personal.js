@@ -12,6 +12,7 @@ const IPHONE_CSV_URL = BASE + "/" + IPHONE_CSV_REPO_PATH;
 const VERSION_URL = BASE + "/version.json";
 const SCRIPT_CACHE_FILE_NAME = "KTV_Pro_V8_3_Personal.cached.js";
 const SCRIPT_SELF_URL = BASE + "/scriptable/KTV_Pro_V8_3_Personal.js";
+const EMPTY_MASTER_CSV = "\uFEFFTitle,Artist,Language,InYuan,GoldenVoice,Hongyin,Volume,Note\n";
 
 const fm = FileManager.local();
 const localFM = fm;
@@ -363,9 +364,10 @@ function mirrorCsvCachesToVisibleFiles() {
 
 async function updateLibrary() {
   try {
-    let txt = await fetchTextNoCache(CSV_URL, false);
+    let txt = await fetchTextNoCache(CSV_URL, true);
+    if (txt === null) txt = EMPTY_MASTER_CSV;
+
     let rows = csvToSongs(txt);
-    if (rows.length === 0) throw new Error("GitHub CSV 已下載，但解析後是 0 首。請確認 songs/master.csv 欄位。");
 
     fm.writeString(csvPath, txt);
 
