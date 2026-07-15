@@ -4,14 +4,14 @@ using KTVManagerProfessional.Core.Importing;
 
 if (args.Length < 1)
 {
-    Console.Error.WriteLine("Usage: BatchImport <pdf-directory> [seed-csv-or-excel ...]");
+    Console.Error.WriteLine("Usage: BatchImport <pdf-file-or-directory> [seed-csv-or-excel ...]");
     return 2;
 }
 
-var sourceDirectory = Path.GetFullPath(args[0]);
-if (!Directory.Exists(sourceDirectory))
+var sourcePath = Path.GetFullPath(args[0]);
+if (!Directory.Exists(sourcePath) && !File.Exists(sourcePath))
 {
-    Console.Error.WriteLine($"PDF directory does not exist: {sourceDirectory}");
+    Console.Error.WriteLine($"PDF source does not exist: {sourcePath}");
     return 2;
 }
 
@@ -20,10 +20,14 @@ var databasePath = Path.Combine(repositoryPath, "manager-v6", "data", "ktv-manag
 var songsDirectoryPath = SongLibraryPaths.DefaultSongsDirectoryPath;
 var masterCsvPath = SongLibraryPaths.DefaultMasterCsvPath;
 
-var pdfPaths = Directory
-    .EnumerateFiles(sourceDirectory, "*.pdf", SearchOption.TopDirectoryOnly)
-    .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
-    .ToList();
+var pdfPaths = File.Exists(sourcePath)
+    ? Path.GetExtension(sourcePath).Equals(".pdf", StringComparison.OrdinalIgnoreCase)
+        ? new List<string> { sourcePath }
+        : new List<string>()
+    : Directory
+        .EnumerateFiles(sourcePath, "*.pdf", SearchOption.TopDirectoryOnly)
+        .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+        .ToList();
 var seedPaths = args
     .Skip(1)
     .Select(Path.GetFullPath)
